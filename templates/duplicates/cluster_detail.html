@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block title %}Cluster Detail - ParishStaq Portal{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <nav class="col-md-2 sidebar py-3">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link" href="/dashboard">
+                        <i class="bi bi-speedometer2"></i> Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/campuses">
+                        <i class="bi bi-building"></i> Campuses
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/search">
+                        <i class="bi bi-search"></i> Search
+                    </a>
+                </li>
+                <li class="nav-item mt-3">
+                    <span class="nav-link text-muted small">TOOLS</span>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/mirror">
+                        <i class="bi bi-arrow-repeat"></i> Mirror
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="/duplicates">
+                        <i class="bi bi-people-fill"></i> Duplicates
+                    </a>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Main content -->
+        <main class="col-md-10 ms-sm-auto px-4 py-3">
+            <nav aria-label="breadcrumb" class="mb-3">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/duplicates">Duplicates</a></li>
+                    <li class="breadcrumb-item"><a href="/duplicates/scan/{{ job_id }}/results">Results</a></li>
+                    <li class="breadcrumb-item active">Cluster {{ cluster_index + 1 }}</li>
+                </ol>
+            </nav>
+
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h2">
+                    <i class="bi bi-diagram-3"></i> 
+                    Duplicate Cluster #{{ cluster_index + 1 }}
+                </h1>
+                <a href="/duplicates/scan/{{ job_id }}/results" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-left"></i> Back to Results
+                </a>
+            </div>
+
+            <!-- Cluster Summary -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <div class="h3">{{ cluster.cluster_size }}</div>
+                            <div class="text-muted small">Records</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <div class="h3">{{ cluster.max_score }}</div>
+                            <div class="text-muted small">Max Score</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            {% if cluster.confidence == 'high' %}
+                            <span class="badge bg-danger fs-5">High</span>
+                            {% elif cluster.confidence == 'medium' %}
+                            <span class="badge bg-warning text-dark fs-5">Medium</span>
+                            {% else %}
+                            <span class="badge bg-secondary fs-5">{{ cluster.confidence }}</span>
+                            {% endif %}
+                            <div class="text-muted small mt-1">Confidence</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <strong>Match Fields:</strong><br>
+                            {% for field in cluster.match_fields %}
+                            <span class="badge bg-info me-1 mb-1">{{ field }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Flags -->
+            {% if cluster.same_family or cluster.has_inactive %}
+            <div class="alert alert-warning">
+                {% if cluster.same_family %}
+                <i class="bi bi-exclamation-triangle"></i> <strong>Same Family:</strong> Some members are in the same family
+                {% endif %}
+                {% if cluster.has_inactive %}
+                <i class="bi bi-pause-circle"></i> <strong>Inactive:</strong> Some members are inactive
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Members -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-people"></i> Cluster Members</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th></th>
+                                    <th>Name</th>
+                                    <th>ID</th>
+                                    <th>Email</th>
+                                    <th>Phone</th>
+                                    <th>Address</th>
+                                    <th>Family ID</th>
+                                    <th>Campus</th>
+                                    <th>Status</th>
+                                    <th>Last Modified</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for member in cluster.members %}
+                                <tr class="{% if not member.active %}table-secondary{% endif %}">
+                                    <td>
+                                        {% if member.aos_id == cluster.recommended_winner %}
+                                        <i class="bi bi-star-fill text-warning" title="Recommended Winner"></i>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <strong>{{ member.name }}</strong>
+                                    </td>
+                                    <td>
+                                        <code>{{ member.aos_id }}</code>
+                                    </td>
+                                    <td>{{ member.email or '-' }}</td>
+                                    <td>{{ member.phone or '-' }}</td>
+                                    <td>
+                                        {% if member.address and member.address != '(none)' %}
+                                        {{ member.address }}
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ member.family_id or '-' }}</td>
+                                    <td>{{ member.campus_name or '-' }}</td>
+                                    <td>
+                                        {% if member.active %}
+                                        <span class="badge bg-success">Active</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">Inactive</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if member.last_modified %}
+                                        {{ member.last_modified[:10] }}
+                                        {% else %}
+                                        -
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pair Details -->
+            {% if cluster.pair_details %}
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-link-45deg"></i> Pair Scores</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>ID 1</th>
+                                <th>ID 2</th>
+                                <th>Score</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pair in cluster.pair_details %}
+                            <tr>
+                                <td><code>{{ pair[0] }}</code></td>
+                                <td><code>{{ pair[1] }}</code></td>
+                                <td><strong>{{ pair[2] }}</strong></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Navigation -->
+            <div class="d-flex justify-content-between mt-4">
+                {% if cluster_index > 0 %}
+                <a href="/duplicates/cluster/{{ job_id }}/{{ cluster_index - 1 }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Previous Cluster
+                </a>
+                {% else %}
+                <span></span>
+                {% endif %}
+                
+                <a href="/duplicates/cluster/{{ job_id }}/{{ cluster_index + 1 }}" class="btn btn-outline-secondary">
+                    Next Cluster <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+        </main>
+    </div>
+</div>
+{% endblock %}

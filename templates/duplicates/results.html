@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block title %}Scan Results - ParishStaq Portal{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <nav class="col-md-2 sidebar py-3">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link" href="/dashboard">
+                        <i class="bi bi-speedometer2"></i> Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/campuses">
+                        <i class="bi bi-building"></i> Campuses
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/search">
+                        <i class="bi bi-search"></i> Search
+                    </a>
+                </li>
+                <li class="nav-item mt-3">
+                    <span class="nav-link text-muted small">TOOLS</span>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/mirror">
+                        <i class="bi bi-arrow-repeat"></i> Mirror
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="/duplicates">
+                        <i class="bi bi-people-fill"></i> Duplicates
+                    </a>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Main content -->
+        <main class="col-md-10 ms-sm-auto px-4 py-3">
+            <nav aria-label="breadcrumb" class="mb-3">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/duplicates">Duplicates</a></li>
+                    <li class="breadcrumb-item active">Scan Results</li>
+                </ol>
+            </nav>
+
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h2"><i class="bi bi-list-check"></i> {{ scan_type_label }}</h1>
+                <a href="/duplicates" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-left"></i> Back
+                </a>
+            </div>
+
+            <!-- Summary -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card stat-card">
+                        <div class="card-body text-center">
+                            <div class="stat-value">{{ total_clusters }}</div>
+                            <div class="text-muted small">Duplicate Clusters</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stat-card">
+                        <div class="card-body text-center">
+                            <div class="stat-value">{{ total_records }}</div>
+                            <div class="text-muted small">Total Records</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stat-card">
+                        <div class="card-body text-center">
+                            <div class="stat-value">{{ high_confidence }}</div>
+                            <div class="text-muted small">High Confidence</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <small class="text-muted">Completed</small><br>
+                            <strong>{{ completed_at[:19] }}</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-table"></i> Duplicate Clusters</h5>
+                    <span class="text-muted">Page {{ page }} of {{ total_pages }}</span>
+                </div>
+                <div class="card-body">
+                    {% if results %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Size</th>
+                                    <th>Score</th>
+                                    <th>Confidence</th>
+                                    <th>Match Fields</th>
+                                    <th>Members</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for cluster in results %}
+                                {% set cluster_num = (page - 1) * 20 + loop.index %}
+                                <tr>
+                                    <td>{{ cluster_num }}</td>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ cluster.cluster_size }}</span>
+                                    </td>
+                                    <td>{{ cluster.max_score }}</td>
+                                    <td>
+                                        {% if cluster.confidence == 'high' %}
+                                        <span class="badge bg-danger">High</span>
+                                        {% elif cluster.confidence == 'medium' %}
+                                        <span class="badge bg-warning text-dark">Medium</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">{{ cluster.confidence }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% for field in cluster.match_fields[:3] %}
+                                        <span class="badge bg-info">{{ field }}</span>
+                                        {% endfor %}
+                                        {% if cluster.match_fields|length > 3 %}
+                                        <span class="text-muted">+{{ cluster.match_fields|length - 3 }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% for member in cluster.members[:2] %}
+                                        <div class="small">
+                                            {% if member.aos_id == cluster.recommended_winner %}
+                                            <i class="bi bi-star-fill text-warning"></i>
+                                            {% endif %}
+                                            {{ member.name }}
+                                            {% if not member.active %}<span class="text-muted">(inactive)</span>{% endif %}
+                                        </div>
+                                        {% endfor %}
+                                        {% if cluster.members|length > 2 %}
+                                        <small class="text-muted">+{{ cluster.members|length - 2 }} more</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="/duplicates/cluster/{{ job_id }}/{{ cluster_num - 1 }}" 
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    {% if total_pages > 1 %}
+                    <nav>
+                        <ul class="pagination justify-content-center">
+                            {% if page > 1 %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page - 1 }}">Previous</a>
+                            </li>
+                            {% endif %}
+                            
+                            {% for p in range(1, total_pages + 1) %}
+                            {% if p == page %}
+                            <li class="page-item active"><span class="page-link">{{ p }}</span></li>
+                            {% elif p <= 3 or p > total_pages - 3 or (p >= page - 2 and p <= page + 2) %}
+                            <li class="page-item"><a class="page-link" href="?page={{ p }}">{{ p }}</a></li>
+                            {% elif p == 4 or p == total_pages - 3 %}
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                            {% endif %}
+                            {% endfor %}
+                            
+                            {% if page < total_pages %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page + 1 }}">Next</a>
+                            </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    {% endif %}
+                    
+                    {% else %}
+                    <p class="text-center text-muted my-4">No duplicates found</p>
+                    {% endif %}
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+{% endblock %}

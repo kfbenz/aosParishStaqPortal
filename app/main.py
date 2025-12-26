@@ -13,6 +13,7 @@ from .routes_auth import router as auth_router
 from .routes_dashboard import router as dashboard_router
 from .routes_admin import router as admin_router
 from .routes_mirror import router as mirror_router
+from .routes_duplicates import router as duplicates_router
 
 
 @asynccontextmanager
@@ -43,6 +44,7 @@ app.include_router(auth_router)
 app.include_router(dashboard_router)
 app.include_router(admin_router)
 app.include_router(mirror_router)
+app.include_router(duplicates_router)
 
 
 # =============================================================================

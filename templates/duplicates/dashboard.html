@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+
+{% block title %}Duplicate Detection - ParishStaq Portal{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <nav class="col-md-2 sidebar py-3">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link" href="/dashboard">
+                        <i class="bi bi-speedometer2"></i> Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/campuses">
+                        <i class="bi bi-building"></i> Campuses
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/search">
+                        <i class="bi bi-search"></i> Search
+                    </a>
+                </li>
+                <li class="nav-item mt-3">
+                    <span class="nav-link text-muted small">TOOLS</span>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/mirror">
+                        <i class="bi bi-arrow-repeat"></i> Mirror
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="/duplicates">
+                        <i class="bi bi-people-fill"></i> Duplicates
+                    </a>
+                </li>
+                {% if user.is_admin %}
+                <li class="nav-item mt-3">
+                    <span class="nav-link text-muted small">ADMIN</span>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/admin/users">
+                        <i class="bi bi-people"></i> Users
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+
+        <!-- Main content -->
+        <main class="col-md-10 ms-sm-auto px-4 py-3">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h2"><i class="bi bi-people-fill"></i> Duplicate Detection</h1>
+            </div>
+
+            {% if not scanner_available %}
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i>
+                Duplicate scanner not available. Check that mirror database is connected.
+            </div>
+            {% else %}
+
+            <!-- Stats -->
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="card stat-card">
+                        <div class="card-body text-center">
+                            <div class="stat-value">{{ "{:,}".format(stats.total_individuals or 0) }}</div>
+                            <div class="text-muted small">Total Individuals</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card stat-card">
+                        <div class="card-body text-center">
+                            <div class="stat-value">{{ "{:,}".format(stats.active_individuals or 0) }}</div>
+                            <div class="text-muted small">Active Individuals</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card stat-card">
+                        <div class="card-body text-center">
+                            <div class="stat-value">{{ "{:,}".format(stats.total_families or 0) }}</div>
+                            <div class="text-muted small">Families</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Running Scans -->
+            {% if running_scans %}
+            <div class="card mb-4 border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-hourglass-split"></i> Running Scans</h5>
+                </div>
+                <div class="card-body">
+                    {% for scan in running_scans %}
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <strong>{{ scan.scan_type }}</strong>
+                            <span class="badge bg-primary">{{ scan.progress }}%</span>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                 style="width: {{ scan.progress }}%"></div>
+                        </div>
+                        <small class="text-muted">Found: {{ scan.found or 0 }} clusters</small>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Scan Options -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="bi bi-person-lines-fill"></i> Individual Scans</h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="scanForm" class="mb-3">
+                                <div class="mb-3">
+                                    <label class="form-label">Scan Type</label>
+                                    <select name="scan_type" class="form-select">
+                                        <option value="individuals_email">Name + Email (HIGH confidence)</option>
+                                        <option value="individuals_address">Name + Address (HIGH confidence)</option>
+                                        <option value="individuals_phone">No Address/Email - Name + Phone</option>
+                                    </select>
+                                </div>
+                                <div class="form-check mb-3">
+                                    <input type="checkbox" class="form-check-input" id="activeOnly" name="active_only" checked>
+                                    <label class="form-check-label" for="activeOnly">Active individuals only</label>
+                                </div>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-search"></i> Start Scan
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="bi bi-house-door"></i> Family Scans</h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted">Scan for duplicate families based on head name, address, and phone.</p>
+                            <form id="familyScanForm">
+                                <input type="hidden" name="scan_type" value="families">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-search"></i> Scan Families
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Scans -->
+            {% if completed_scans %}
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-clock-history"></i> Recent Scans</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Scan Type</th>
+                                <th>Status</th>
+                                <th>Clusters</th>
+                                <th>Records</th>
+                                <th>Completed</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for scan in completed_scans %}
+                            <tr>
+                                <td>{{ scan.scan_type }}</td>
+                                <td>
+                                    {% if scan.status == 'completed' %}
+                                    <span class="badge bg-success">Completed</span>
+                                    {% elif scan.status == 'error' %}
+                                    <span class="badge bg-danger">Error</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">{{ scan.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ scan.results_summary.total_clusters }}</td>
+                                <td>{{ scan.results_summary.total_records }}</td>
+                                <td>{{ scan.completed_at[:19] if scan.completed_at else '' }}</td>
+                                <td>
+                                    <a href="/duplicates/scan/{{ scan.id }}/results" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-eye"></i> View
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            {% endif %}
+        </main>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('scanForm')?.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    
+    try {
+        const response = await fetch('/duplicates/scan', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+        if (data.job_id) {
+            alert('Scan started!');
+            location.reload();
+        }
+    } catch (error) {
+        alert('Error starting scan: ' + error);
+    }
+});
+
+document.getElementById('familyScanForm')?.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    
+    try {
+        const response = await fetch('/duplicates/scan', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+        if (data.job_id) {
+            alert('Family scan started!');
+            location.reload();
+        }
+    } catch (error) {
+        alert('Error starting scan: ' + error);
+    }
+});
+
+// Auto-refresh if scans are running
+{% if running_scans %}
+setInterval(() => location.reload(), 5000);
+{% endif %}
+</script>
+{% endblock %}

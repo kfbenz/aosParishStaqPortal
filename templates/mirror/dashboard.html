@@ -1,0 +1,352 @@
+{% extends "base.html" %}
+
+{% block title %}Mirror Management - ParishStaq Portal{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <nav class="col-md-2 sidebar py-3">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link" href="/dashboard">
+                        <i class="bi bi-speedometer2"></i> Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/campuses">
+                        <i class="bi bi-building"></i> Campuses
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/search">
+                        <i class="bi bi-search"></i> Search
+                    </a>
+                </li>
+                <li class="nav-item mt-3">
+                    <span class="nav-link text-muted small">SYNC</span>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="/mirror">
+                        <i class="bi bi-arrow-repeat"></i> Mirror
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/mirror/sync-history">
+                        <i class="bi bi-clock-history"></i> Sync History
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/mirror/campuses-summary">
+                        <i class="bi bi-bar-chart"></i> Campus Summary
+                    </a>
+                </li>
+                {% if user.is_admin %}
+                <li class="nav-item mt-3">
+                    <span class="nav-link text-muted small">ADMIN</span>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/admin/users">
+                        <i class="bi bi-people"></i> Users
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+
+        <!-- Main content -->
+        <main class="col-md-10 ms-sm-auto px-4 py-3">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h2"><i class="bi bi-arrow-repeat"></i> Mirror Management</h1>
+            </div>
+
+            {% if not mirror_available %}
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i>
+                Mirror database not available. Check configuration.
+            </div>
+            {% else %}
+
+            <!-- Stats Cards -->
+            {% if stats %}
+            <div class="row mb-4">
+                <div class="col-md-2">
+                    <div class="card stat-card">
+                        <div class="card-body text-center">
+                            <div class="stat-value">{{ "{:,}".format(stats.total_individuals or 0) }}</div>
+                            <div class="text-muted small">Total Individuals</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="card stat-card">
+                        <div class="card-body text-center">
+                            <div class="stat-value">{{ "{:,}".format(stats.active_individuals or 0) }}</div>
+                            <div class="text-muted small">Active</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="card stat-card">
+                        <div class="card-body text-center">
+                            <div class="stat-value">{{ "{:,}".format(stats.total_families or 0) }}</div>
+                            <div class="text-muted small">Families</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="card stat-card">
+                        <div class="card-body text-center">
+                            <div class="stat-value">{{ stats.total_campuses or 0 }}</div>
+                            <div class="text-muted small">Campuses</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="card stat-card">
+                        <div class="card-body text-center">
+                            <div class="stat-value">{{ "{:,}".format(stats.deceased_individuals or 0) }}</div>
+                            <div class="text-muted small">Deceased</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="card stat-card">
+                        <div class="card-body text-center">
+                            <div class="stat-value">{{ "{:,}".format(stats.geocoded_individuals or 0) }}</div>
+                            <div class="text-muted small">Geocoded</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Last Sync Info -->
+            {% if stats.last_sync %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-info-circle"></i> Last Sync</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <strong>Type:</strong> {{ stats.last_sync.refresh_type or 'N/A' }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Status:</strong> 
+                            {% if stats.last_sync.status == 'completed' %}
+                            <span class="badge bg-success">Completed</span>
+                            {% elif stats.last_sync.status == 'running' %}
+                            <span class="badge bg-primary">Running</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ stats.last_sync.status }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Started:</strong> {{ stats.last_sync.started_at[:19] if stats.last_sync.started_at else 'N/A' }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Records:</strong> {{ "{:,}".format(stats.last_sync.individuals_processed or 0) }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            {% endif %}
+
+            <!-- Running Jobs -->
+            {% if running_jobs %}
+            <div class="card mb-4 border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-hourglass-split"></i> Running Jobs</h5>
+                </div>
+                <div class="card-body">
+                    {% for job in running_jobs %}
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <strong>{{ job.description }}</strong>
+                            <small class="text-muted ms-2">Started: {{ job.started_at[:19] }}</small>
+                        </div>
+                        <a href="#" class="btn btn-sm btn-outline-primary" 
+                           onclick="showJobOutput('{{ job.id }}'); return false;">
+                            <i class="bi bi-terminal"></i> View Output
+                        </a>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Sync Actions -->
+            {% if user.is_admin %}
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="bi bi-lightning"></i> Incremental Refresh</h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted">Sync recently modified records from ParishStaq API.</p>
+                            <form id="incrementalForm" class="d-flex align-items-center">
+                                <label class="me-2">Days back:</label>
+                                <select name="days" class="form-select form-select-sm me-3" style="width: auto;">
+                                    <option value="1">1 day</option>
+                                    <option value="3">3 days</option>
+                                    <option value="7" selected>7 days</option>
+                                    <option value="14">14 days</option>
+                                    <option value="30">30 days</option>
+                                </select>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-arrow-repeat"></i> Start Incremental
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="bi bi-arrow-clockwise"></i> Full Refresh</h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted">Re-sync all records from ParishStaq API. This may take a while.</p>
+                            <button type="button" class="btn btn-warning" id="fullRefreshBtn"
+                                    onclick="confirmFullRefresh()">
+                                <i class="bi bi-arrow-clockwise"></i> Start Full Refresh
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Recent Jobs -->
+            {% if completed_jobs %}
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-clock-history"></i> Recent Jobs</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Job</th>
+                                <th>Status</th>
+                                <th>Started</th>
+                                <th>Completed</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for job in completed_jobs %}
+                            <tr>
+                                <td>{{ job.description }}</td>
+                                <td>
+                                    {% if job.status == 'completed' %}
+                                    <span class="badge bg-success">Completed</span>
+                                    {% elif job.status == 'failed' %}
+                                    <span class="badge bg-danger">Failed</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">{{ job.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ job.started_at[:19] if job.started_at else '' }}</td>
+                                <td>{{ job.completed_at[:19] if job.completed_at else '' }}</td>
+                                <td>
+                                    <a href="#" class="btn btn-sm btn-outline-secondary"
+                                       onclick="showJobOutput('{{ job.id }}'); return false;">
+                                        <i class="bi bi-terminal"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            {% endif %}
+        </main>
+    </div>
+</div>
+
+<!-- Job Output Modal -->
+<div class="modal fade" id="outputModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-terminal"></i> Job Output</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <pre id="jobOutput" style="max-height: 500px; overflow-y: auto; background: #1e1e1e; color: #d4d4d4; padding: 1rem; border-radius: 5px; font-size: 0.85rem;"></pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let refreshInterval = null;
+
+document.getElementById('incrementalForm')?.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    
+    try {
+        const response = await fetch('/mirror/refresh/incremental', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+        if (data.job_id) {
+            alert('Incremental refresh started!');
+            location.reload();
+        }
+    } catch (error) {
+        alert('Error starting refresh: ' + error);
+    }
+});
+
+async function confirmFullRefresh() {
+    if (!confirm('Start a full refresh? This will re-sync ALL records and may take a long time.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/mirror/refresh/full', {
+            method: 'POST'
+        });
+        const data = await response.json();
+        if (data.job_id) {
+            alert('Full refresh started!');
+            location.reload();
+        }
+    } catch (error) {
+        alert('Error starting refresh: ' + error);
+    }
+}
+
+async function showJobOutput(jobId) {
+    const modal = new bootstrap.Modal(document.getElementById('outputModal'));
+    const outputEl = document.getElementById('jobOutput');
+    outputEl.textContent = 'Loading...';
+    modal.show();
+    
+    try {
+        const response = await fetch(`/mirror/job/${jobId}/output`);
+        const data = await response.json();
+        outputEl.textContent = data.output.join('\n') || '(no output)';
+    } catch (error) {
+        outputEl.textContent = 'Error loading output: ' + error;
+    }
+}
+
+// Auto-refresh if jobs are running
+{% if running_jobs %}
+setInterval(() => location.reload(), 10000);
+{% endif %}
+</script>
+{% endblock %}

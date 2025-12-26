@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - ParishStaq Portal{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <nav class="col-md-2 sidebar py-3">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link active" href="/dashboard">
+                        <i class="bi bi-speedometer2"></i> Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/campuses">
+                        <i class="bi bi-building"></i> Campuses
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/search">
+                        <i class="bi bi-search"></i> Search
+                    </a>
+                </li>
+                <li class="nav-item mt-3">
+                    <span class="nav-link text-muted small">SYNC</span>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/mirror">
+                        <i class="bi bi-arrow-repeat"></i> Mirror
+                    </a>
+                </li>
+                {% if user.is_admin %}
+                <li class="nav-item mt-3">
+                    <span class="nav-link text-muted small">ADMIN</span>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/admin/users">
+                        <i class="bi bi-people"></i> Users
+                    </a>
+                </li>
+                {% endif %}
+                {% if not user.totp_enabled %}
+                <li class="nav-item mt-3">
+                    <a class="nav-link text-warning" href="/auth/setup-2fa">
+                        <i class="bi bi-shield-exclamation"></i> Setup 2FA
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+
+        <!-- Main content -->
+        <main class="col-md-10 ms-sm-auto px-4 py-3">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h2">Dashboard</h1>
+                <span class="text-muted">Welcome, {{ user.username }}</span>
+            </div>
+
+            {% if not user.totp_enabled %}
+            <div class="alert alert-warning" role="alert">
+                <i class="bi bi-shield-exclamation"></i>
+                <strong>2FA Not Enabled:</strong> 
+                For better security, please <a href="/auth/setup-2fa">setup two-factor authentication</a>.
+            </div>
+            {% endif %}
+
+            {% if mirror_available %}
+            <!-- Stats Cards -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card stat-card">
+                        <div class="card-body">
+                            <div class="stat-value">{{ stats.total_individuals | default(0) | int }}</div>
+                            <div class="text-muted">Total Individuals</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stat-card">
+                        <div class="card-body">
+                            <div class="stat-value">{{ stats.active_individuals | default(0) | int }}</div>
+                            <div class="text-muted">Active Individuals</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stat-card">
+                        <div class="card-body">
+                            <div class="stat-value">{{ stats.total_families | default(0) | int }}</div>
+                            <div class="text-muted">Families</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stat-card">
+                        <div class="card-body">
+                            <div class="stat-value">{{ stats.total_campuses | default(0) | int }}</div>
+                            <div class="text-muted">Campuses</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="bi bi-lightning"></i> Quick Actions</h5>
+                        </div>
+                        <div class="card-body">
+                            <a href="/campuses" class="btn btn-outline-primary me-2">
+                                <i class="bi bi-building"></i> View Campuses
+                            </a>
+                            <a href="/search" class="btn btn-outline-primary">
+                                <i class="bi bi-search"></i> Search
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="alert alert-info" role="alert">
+                <i class="bi bi-info-circle"></i>
+                <strong>Mirror Database Not Available:</strong> 
+                The ParishStaq mirror database is not connected. Please run parishstaq_mirror.py to sync data.
+            </div>
+            {% endif %}
+        </main>
+    </div>
+</div>
+{% endblock %}

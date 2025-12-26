@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Search - ParishStaq Portal{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <nav class="col-md-2 sidebar py-3">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link" href="/dashboard">
+                        <i class="bi bi-speedometer2"></i> Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/campuses">
+                        <i class="bi bi-building"></i> Campuses
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="/search">
+                        <i class="bi bi-search"></i> Search
+                    </a>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Main content -->
+        <main class="col-md-10 ms-sm-auto px-4 py-3">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h2"><i class="bi bi-search"></i> Search</h1>
+            </div>
+
+            <!-- Search Form -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <form method="get" action="/search">
+                        <div class="input-group">
+                            <input type="text" class="form-control form-control-lg" 
+                                   name="q" value="{{ query or '' }}" 
+                                   placeholder="Search by name or email..."
+                                   autofocus>
+                            <button class="btn btn-primary" type="submit">
+                                <i class="bi bi-search"></i> Search
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            {% if query %}
+            <!-- Results -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        Results for "{{ query }}" 
+                        <span class="badge bg-secondary">{{ results | length }}</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if results %}
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Address</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for person in results %}
+                            <tr>
+                                <td>
+                                    <strong>{{ person.first_name }} {{ person.last_name }}</strong>
+                                    <br><small class="text-muted">ID: {{ person.aos_id }}</small>
+                                </td>
+                                <td>{{ person.email or '-' }}</td>
+                                <td>
+                                    {% if person.address_street %}
+                                    {{ person.address_street }}<br>
+                                    <small class="text-muted">{{ person.address_city }}, {{ person.address_state }}</small>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if person.active %}
+                                    <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">Inactive</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <p class="text-center text-muted my-4">No results found</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% elif not mirror_available %}
+            <div class="alert alert-info" role="alert">
+                <i class="bi bi-info-circle"></i>
+                Mirror database not available. Please run parishstaq_mirror.py to sync data.
+            </div>
+            {% endif %}
+        </main>
+    </div>
+</div>
+{% endblock %}

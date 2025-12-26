@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Setup 2FA - ParishStaq Portal{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0"><i class="bi bi-shield-lock"></i> Setup Two-Factor Authentication</h4>
+                </div>
+                <div class="card-body">
+                    {% if error %}
+                    <div class="alert alert-danger" role="alert">
+                        <i class="bi bi-exclamation-triangle"></i> {{ error }}
+                    </div>
+                    {% endif %}
+                    
+                    <div class="text-center mb-4">
+                        <p>Scan this QR code with your authenticator app:</p>
+                        <img src="data:image/png;base64,{{ qr_code }}" alt="2FA QR Code" class="img-fluid mb-3" style="max-width: 200px;">
+                        <p class="text-muted small">
+                            Or enter this code manually:<br>
+                            <code class="user-select-all">{{ secret }}</code>
+                        </p>
+                    </div>
+                    
+                    <hr>
+                    
+                    <form method="post" action="/auth/setup-2fa">
+                        <div class="mb-3">
+                            <label for="code" class="form-label">Enter the 6-digit code to verify:</label>
+                            <input type="text" class="form-control text-center" id="code" name="code" 
+                                   maxlength="6" pattern="[0-9]{6}" required autofocus
+                                   style="font-size: 1.5rem; letter-spacing: 0.5rem;">
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-check-circle"></i> Enable 2FA
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

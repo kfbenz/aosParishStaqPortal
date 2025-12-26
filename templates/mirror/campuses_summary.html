@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}Campus Summary - ParishStaq Portal{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <nav class="col-md-2 sidebar py-3">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link" href="/dashboard">
+                        <i class="bi bi-speedometer2"></i> Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/campuses">
+                        <i class="bi bi-building"></i> Campuses
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/search">
+                        <i class="bi bi-search"></i> Search
+                    </a>
+                </li>
+                <li class="nav-item mt-3">
+                    <span class="nav-link text-muted small">SYNC</span>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/mirror">
+                        <i class="bi bi-arrow-repeat"></i> Mirror
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/mirror/sync-history">
+                        <i class="bi bi-clock-history"></i> Sync History
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="/mirror/campuses-summary">
+                        <i class="bi bi-bar-chart"></i> Campus Summary
+                    </a>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Main content -->
+        <main class="col-md-10 ms-sm-auto px-4 py-3">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h2"><i class="bi bi-bar-chart"></i> Campus Summary</h1>
+                <a href="/mirror" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-left"></i> Back to Mirror
+                </a>
+            </div>
+
+            {% if not mirror_available %}
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i>
+                Mirror database not available.
+            </div>
+            {% else %}
+
+            <div class="card">
+                <div class="card-body">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Campus</th>
+                                <th>ID</th>
+                                <th class="text-end">Active Individuals</th>
+                                <th class="text-end">Families</th>
+                                <th class="text-end">Geocoded</th>
+                                <th class="text-end">Geocode %</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% set totals = namespace(individuals=0, families=0, geocoded=0) %}
+                            {% for item in campuses_data %}
+                            {% set totals.individuals = totals.individuals + item.active_individuals %}
+                            {% set totals.families = totals.families + item.families %}
+                            {% set totals.geocoded = totals.geocoded + item.geocoded %}
+                            <tr>
+                                <td>
+                                    <a href="/campus/{{ item.campus.campus_id }}">
+                                        {{ item.campus.name }}
+                                    </a>
+                                </td>
+                                <td>{{ item.campus.campus_id }}</td>
+                                <td class="text-end">{{ "{:,}".format(item.active_individuals) }}</td>
+                                <td class="text-end">{{ "{:,}".format(item.families) }}</td>
+                                <td class="text-end">{{ "{:,}".format(item.geocoded) }}</td>
+                                <td class="text-end">
+                                    {% if item.active_individuals > 0 %}
+                                    {% set pct = (item.geocoded / item.active_individuals * 100) | round(1) %}
+                                    <div class="progress" style="min-width: 80px;">
+                                        <div class="progress-bar {% if pct >= 80 %}bg-success{% elif pct >= 50 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                             style="width: {{ pct }}%">
+                                            {{ pct }}%
+                                        </div>
+                                    </div>
+                                    {% else %}
+                                    -
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center text-muted">No campuses found</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <th>Total</th>
+                                <th></th>
+                                <th class="text-end">{{ "{:,}".format(totals.individuals) }}</th>
+                                <th class="text-end">{{ "{:,}".format(totals.families) }}</th>
+                                <th class="text-end">{{ "{:,}".format(totals.geocoded) }}</th>
+                                <th class="text-end">
+                                    {% if totals.individuals > 0 %}
+                                    {{ ((totals.geocoded / totals.individuals) * 100) | round(1) }}%
+                                    {% endif %}
+                                </th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+
+            {% endif %}
+        </main>
+    </div>
+</div>
+{% endblock %}

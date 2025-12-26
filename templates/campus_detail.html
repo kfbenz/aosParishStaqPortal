@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}{{ campus.name }} - ParishStaq Portal{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <nav class="col-md-2 sidebar py-3">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link" href="/dashboard">
+                        <i class="bi bi-speedometer2"></i> Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="/campuses">
+                        <i class="bi bi-building"></i> Campuses
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/search">
+                        <i class="bi bi-search"></i> Search
+                    </a>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Main content -->
+        <main class="col-md-10 ms-sm-auto px-4 py-3">
+            <nav aria-label="breadcrumb" class="mb-3">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/campuses">Campuses</a></li>
+                    <li class="breadcrumb-item active">{{ campus.name }}</li>
+                </ol>
+            </nav>
+
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h2"><i class="bi bi-church"></i> {{ campus.name }}</h1>
+            </div>
+
+            <!-- Stats -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card stat-card">
+                        <div class="card-body">
+                            <div class="stat-value">{{ stats.total_individuals | int }}</div>
+                            <div class="text-muted">Active Individuals</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stat-card">
+                        <div class="card-body">
+                            <div class="stat-value">{{ stats.total_families | int }}</div>
+                            <div class="text-muted">Families</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stat-card">
+                        <div class="card-body">
+                            <div class="stat-value">{{ stats.heads | int }}</div>
+                            <div class="text-muted">Heads of Household</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Families Table -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-people"></i> Families (showing first 100)</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Family Name</th>
+                                <th>Address</th>
+                                <th>Phone</th>
+                                <th>Email</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for family in families %}
+                            <tr>
+                                <td>
+                                    <strong>{{ family.head_first_name }} {{ family.head_last_name }}</strong>
+                                    {% if family.spouse_first_name %}
+                                    <br><small class="text-muted">& {{ family.spouse_first_name }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if family.address_street %}
+                                    {{ family.address_street }}<br>
+                                    <small class="text-muted">{{ family.address_city }}, {{ family.address_state }} {{ family.address_zip }}</small>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ family.phone or '-' }}</td>
+                                <td>{{ family.head_email or '-' }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="4" class="text-center text-muted">No families found</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+{% endblock %}

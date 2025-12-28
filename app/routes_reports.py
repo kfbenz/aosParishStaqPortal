@@ -237,7 +237,7 @@ async def export_individuals(
                 ind.last_name,
                 ind.email,
                 ind.phone,
-                ind.birth_date.isoformat() if ind.birth_date else '',
+                ind.birth_date.isoformat() if ind.birth_date else ind.membership_date.isoformat() if ind.membership_date else '',
                 ind.gender,
                 'Yes' if ind.active else 'No',
                 ind.created_at.isoformat() if ind.created_at else ''

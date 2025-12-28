@@ -4,6 +4,7 @@ Portal Configuration - All settings from environment variables
 import os
 from functools import lru_cache
 from pydantic_settings import BaseSettings
+from pydantic import Field
 
 
 class Settings(BaseSettings):
@@ -14,36 +15,25 @@ class Settings(BaseSettings):
     debug: bool = False
     
     # Security
-    secret_key: str
+    secret_key: str = Field(alias="SECRET_KEY")
     
     # Database
-    database_url: str
+    database_url: str = Field(alias="PORTAL_DATABASE_URL")
     
     # Google Maps (for geocoding)
-    google_maps_api_key: str = ""
+    google_maps_api_key: str = Field(default="", alias="GOOGLE_MAPS_API_KEY")
     
     # Email settings (for magic links)
-    smtp_host: str = ""
-    smtp_port: int = 587
-    smtp_user: str = ""
-    smtp_password: str = ""
-    smtp_from: str = ""
+    smtp_host: str = Field(default="", alias="SMTP_HOST")
+    smtp_port: int = Field(default=587, alias="SMTP_PORT")
+    smtp_user: str = Field(default="", alias="SMTP_USER")
+    smtp_password: str = Field(default="", alias="SMTP_PASSWORD")
+    smtp_from: str = Field(default="", alias="SMTP_FROM")
     
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
-        # Map environment variable names
-        env_prefix = ""
-        fields = {
-            "secret_key": {"env": "SECRET_KEY"},
-            "database_url": {"env": "PORTAL_DATABASE_URL"},
-            "google_maps_api_key": {"env": "GOOGLE_MAPS_API_KEY"},
-            "smtp_host": {"env": "SMTP_HOST"},
-            "smtp_port": {"env": "SMTP_PORT"},
-            "smtp_user": {"env": "SMTP_USER"},
-            "smtp_password": {"env": "SMTP_PASSWORD"},
-            "smtp_from": {"env": "SMTP_FROM"},
-        }
+        extra = "ignore"  # Ignore extra env vars
 
 
 @lru_cache()

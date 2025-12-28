@@ -5,13 +5,12 @@ from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from datetime import datetime, timezone
+import bcrypt
 import os
-
 from .models import PortalUser, get_session
 from .auth import get_current_user
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
-
 templates_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")
 templates = Jinja2Templates(directory=templates_path)
 
@@ -31,21 +30,22 @@ async def login_page(request: Request):
 
 
 @router.post("/login")
-async def login(request: Request, email: str = Form(...)):
-    """Process login - magic link style (simplified for now)"""
-    email = email.lower().strip()
+async def login(request: Request, username: str = Form(...), password: str = Form(...)):
+    """Process login with username and password"""
+    username = username.lower().strip()
     
     db = get_session()
     try:
-        user = db.query(PortalUser).filter(PortalUser.email == email).first()
+        user = db.query(PortalUser).filter(PortalUser.username == username).first()
         
-        if user and user.is_active:
-            user.last_login = datetime.now(timezone.utc)
-            db.commit()
-            request.session['user_id'] = user.id
-            return RedirectResponse(url="/dashboard", status_code=303)
+        if user and user.is_active and user.hashed_password:
+            if bcrypt.checkpw(password.encode(), user.hashed_password.encode()):
+                user.last_login = datetime.now(timezone.utc)
+                db.commit()
+                request.session['user_id'] = user.id
+                return RedirectResponse(url="/dashboard", status_code=303)
         
-        request.session['flash'] = "Account not found or inactive. Contact administrator."
+        request.session['flash'] = "Invalid username or password."
         return RedirectResponse(url="/auth/login", status_code=303)
     finally:
         db.close()

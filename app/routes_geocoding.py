@@ -52,10 +52,35 @@ async def geocoding_dashboard(request: Request, user: dict = Depends(get_current
         
         # Get cache stats
         from mirror_database import GeocodingCache
-        cache_total = db.session.query(GeocodingCache).count()
-        cache_success = db.session.query(GeocodingCache).filter_by(geocode_status='success').count()
-        cache_pending = db.session.query(GeocodingCache).filter_by(geocode_status='pending').count()
-        cache_failed = db.session.query(GeocodingCache).filter_by(geocode_status='failed').count()
+        from sqlalchemy import func
+        
+        total_cached = db.session.query(GeocodingCache).count()
+        
+        # Get accuracy breakdown
+        accuracy_results = db.session.query(
+            GeocodingCache.geocode_quality,
+            func.count(GeocodingCache.id)
+        ).filter(
+            GeocodingCache.geocode_status == 'success'
+        ).group_by(GeocodingCache.geocode_quality).all()
+        
+        accuracy_breakdown = {(quality or 'UNKNOWN').upper(): count for quality, count in accuracy_results}
+        
+        # Get recent geocodes
+        recent = db.session.query(GeocodingCache).filter(
+            GeocodingCache.geocode_status == 'success'
+        ).order_by(GeocodingCache.updated_at.desc()).limit(10).all()
+        
+        # Format recent for template
+        recent_list = []
+        for r in recent:
+            recent_list.append({
+                'id': r.id,
+                'street': r.address_street,
+                'city': r.address_city,
+                'accuracy': (r.geocode_quality or 'UNKNOWN').upper(),
+                'geocoded_at': r.geocoded_at
+            })
         
         db.close()
         
@@ -64,21 +89,23 @@ async def geocoding_dashboard(request: Request, user: dict = Depends(get_current
             "user": user,
             "stats": stats,
             "campus_stats": campus_stats,
-            "cache_stats": {
-                "total": cache_total,
-                "success": cache_success,
-                "pending": cache_pending,
-                "failed": cache_failed
-            }
+            "total_cached": total_cached,
+            "accuracy_breakdown": accuracy_breakdown,
+            "recent": recent_list
         })
         
     except Exception as e:
-        return templates.TemplateResponse("error.html", {
+        db.close() if 'db' in dir() else None
+        return templates.TemplateResponse("geocoding/dashboard.html", {
             "request": request,
             "user": user,
-            "error": "Geocoding Dashboard Error",
-            "message": str(e)
-        }, status_code=500)
+            "error": str(e),
+            "stats": {},
+            "campus_stats": [],
+            "total_cached": 0,
+            "accuracy_breakdown": {},
+            "recent": []
+        })
 
 
 # =============================================================================
@@ -291,6 +318,27 @@ async def geocode_families(
         
         total_pages = (total + per_page - 1) // per_page
         
+        # Get counts for stats cards
+        total_families = db.session.query(Individual).filter(
+            Individual.household_position == 'PRIMARY_CONTACT',
+            Individual.active == True
+        ).count()
+        
+        geocoded_count = db.session.query(Individual).filter(
+            Individual.household_position == 'PRIMARY_CONTACT',
+            Individual.active == True,
+            Individual.latitude.isnot(None),
+            Individual.latitude != ''
+        ).count()
+        
+        pending_count = db.session.query(Individual).filter(
+            Individual.household_position == 'PRIMARY_CONTACT',
+            Individual.active == True,
+            Individual.address_street.isnot(None),
+            Individual.address_street != '',
+            (Individual.latitude.is_(None)) | (Individual.latitude == '')
+        ).count()
+        
         db.close()
         
         return templates.TemplateResponse("geocoding/families.html", {
@@ -303,7 +351,10 @@ async def geocode_families(
             "page": page,
             "per_page": per_page,
             "total": total,
-            "total_pages": total_pages
+            "total_pages": total_pages,
+            "total_families": total_families,
+            "geocoded_count": geocoded_count,
+            "pending_count": pending_count
         })
         
     except Exception as e:
@@ -585,6 +636,58 @@ async def api_markers(
             "success": True,
             "count": len(markers),
             "markers": markers
+        })
+        
+    except Exception as e:
+        return JSONResponse({
+            "success": False,
+            "error": str(e)
+        }, status_code=500)
+
+
+@router.get("/api/map/families")
+async def api_map_families(
+    campus_id: int = Query(None),
+    user: dict = Depends(get_current_user)
+):
+    """API endpoint for map family data"""
+    try:
+        db = get_mirror_db()
+        from mirror_database import Individual
+        
+        query = db.session.query(Individual).filter(
+            Individual.household_position == 'PRIMARY_CONTACT',
+            Individual.active == True,
+            Individual.latitude.isnot(None),
+            Individual.latitude != '',
+            Individual.longitude.isnot(None),
+            Individual.longitude != ''
+        )
+        
+        if campus_id:
+            query = query.filter(Individual.campus_id == campus_id)
+        
+        individuals = query.limit(2000).all()
+        
+        data = []
+        for ind in individuals:
+            try:
+                data.append({
+                    "lat": float(ind.latitude),
+                    "lng": float(ind.longitude),
+                    "name": f"{ind.first_name} {ind.last_name}",
+                    "address": ind.full_address or "",
+                    "aos_id": ind.aos_id
+                })
+            except (ValueError, TypeError):
+                continue
+        
+        db.close()
+        
+        return JSONResponse({
+            "success": True,
+            "count": len(data),
+            "data": data
         })
         
     except Exception as e:

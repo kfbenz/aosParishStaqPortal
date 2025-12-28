@@ -5,6 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse
+from starlette.middleware.sessions import SessionMiddleware
 from contextlib import asynccontextmanager
 from .config import get_settings
 from .models import init_db
@@ -14,6 +15,7 @@ from .routes_admin import router as admin_router
 from .routes_mirror import router as mirror_router
 from .routes_duplicates import router as duplicates_router
 from .routes_geocoding import router as geocoding_router
+from .routes_reports import router as reports_router
 
 
 @asynccontextmanager
@@ -36,6 +38,9 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Add session middleware
+app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
+
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -46,6 +51,7 @@ app.include_router(admin_router)
 app.include_router(mirror_router)
 app.include_router(duplicates_router)
 app.include_router(geocoding_router)
+app.include_router(reports_router)
 
 
 # =============================================================================
@@ -78,3 +84,8 @@ async def not_found_handler(request: Request, exc):
         "error": "Not Found",
         "message": "The page you're looking for doesn't exist."
     }, status_code=404)
+
+# Root redirect
+@app.get("/")
+async def root():
+    return RedirectResponse(url="/dashboard", status_code=302)

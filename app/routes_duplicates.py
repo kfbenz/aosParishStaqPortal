@@ -12,10 +12,11 @@ import io
 from datetime import datetime
 
 from .auth import get_current_user, require_auth, require_admin
-from .models import ScanJob, PortalCampus, get_session, SessionLocal
+from .models import ScanJob, get_session, SessionLocal
 
 # Add path for mirror database
 sys.path.insert(0, '/opt/portal_app/aosParishStaq/src')
+from mirror_database import Campus, MirrorDatabase
 
 router = APIRouter(prefix="/duplicates", tags=["Duplicates"])
 
@@ -36,12 +37,13 @@ async def duplicates_home(request: Request):
         # Get recent scans
         scans = portal_db.query(ScanJob).order_by(ScanJob.created_at.desc()).limit(10).all()
         
-        # Get campuses for dropdown
+        # Get campuses for dropdown from mirror database
+        mirror_db = MirrorDatabase()
         if user['is_admin']:
-            campuses = portal_db.query(PortalCampus).filter(PortalCampus.active == True).order_by(PortalCampus.name).all()
+            campuses = mirror_db.session.query(Campus).filter(Campus.active == True).order_by(Campus.name).all()
         else:
             campus_ids = [c['id'] for c in user.get('campuses', [])]
-            campuses = portal_db.query(PortalCampus).filter(PortalCampus.id.in_(campus_ids)).order_by(PortalCampus.name).all()
+            campuses = mirror_db.session.query(Campus).filter(Campus.id.in_(campus_ids)).order_by(Campus.name).all()
         
         return templates.TemplateResponse("duplicates/index.html", {
             "request": request,
@@ -57,7 +59,7 @@ async def duplicates_home(request: Request):
 @require_auth
 async def start_scan(
     request: Request,
-    campus_id: int = Form(...),
+    campus_id: str = Form(""),
     scan_type: str = Form("quick")
 ):
     """Start a new duplicate scan"""
@@ -65,16 +67,25 @@ async def start_scan(
     if not user:
         return JSONResponse({"error": "Not authenticated"}, status_code=401)
     
-    portal_db = SessionLocal()
+    # Convert campus_id to int
+    if not campus_id or campus_id == "":
+        return JSONResponse({"error": "Please select a campus"}, status_code=400)
     try:
-        # Get campus info
-        campus = portal_db.query(PortalCampus).filter(PortalCampus.campus_id == campus_id).first()
+        campus_id_int = int(campus_id)
+    except ValueError:
+        return JSONResponse({"error": "Invalid campus ID"}, status_code=400)
+    
+    portal_db = SessionLocal()
+    mirror_db = MirrorDatabase()
+    try:
+        # Get campus info from mirror database
+        campus = mirror_db.session.query(Campus).filter(Campus.campus_id == campus_id_int).first()
         if not campus:
             return JSONResponse({"error": "Campus not found"}, status_code=404)
         
         # Create scan job
         scan = ScanJob(
-            campus_id=campus_id,
+            campus_id=campus_id_int,
             campus_name=campus.name,
             scan_type=scan_type,
             status='running',

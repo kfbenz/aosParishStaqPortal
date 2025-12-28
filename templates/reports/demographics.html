@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Demographics Report - ParishStaq Portal{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-people"></i> Demographics Report</h2>
+    <a href="/reports" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back to Reports
+    </a>
+</div>
+
+{% if error %}
+<div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-primary">{{ total_individuals | default(0) | int }}</h3>
+                <p class="text-muted mb-0">Total Individuals</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-success">{{ active_count | default(0) | int }}</h3>
+                <p class="text-muted mb-0">Active</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-secondary">{{ inactive_count | default(0) | int }}</h3>
+                <p class="text-muted mb-0">Inactive</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-info">{{ family_count | default(0) | int }}</h3>
+                <p class="text-muted mb-0">Families</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Membership Tenure Distribution -->
+<div class="card mb-4">
+    <div class="card-header">
+        <i class="bi bi-calendar-check"></i> Membership Tenure Distribution
+    </div>
+    <div class="card-body">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Tenure</th>
+                    <th>Count</th>
+                    <th>Distribution</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set total = total_individuals | default(1) | int %}
+                {% for group, count in tenure_groups.items() %}
+                <tr>
+                    <td>{{ group }}</td>
+                    <td>{{ count | int }}</td>
+                    <td style="width: 50%;">
+                        <div class="progress" style="height: 25px;">
+                            {% set pct = (count / total * 100) if total > 0 else 0 %}
+                            <div class="progress-bar bg-primary" role="progressbar" 
+                                 style="width: {{ pct }}%">
+                                {{ "%.1f" | format(pct) }}%
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

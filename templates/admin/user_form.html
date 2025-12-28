@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Edit User' if edit_user else 'New User' }} - ParishStaq Portal{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <a href="/admin/users" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back
+    </a>
+</div>
+
+<div class="card" style="max-width: 600px;">
+    <div class="card-header">
+        {{ 'Edit User' if edit_user else 'New User' }}
+    </div>
+    <div class="card-body">
+        {% if error %}
+        <div class="alert alert-danger">{{ error }}</div>
+        {% endif %}
+
+        <form method="POST" action="{{ '/admin/users/' ~ edit_user.id ~ '/edit' if edit_user else '/admin/users/new' }}">
+            <div class="mb-3">
+                <label class="form-label">Username</label>
+                {% if edit_user %}
+                <input type="text" class="form-control" value="{{ edit_user.username }}" disabled>
+                {% else %}
+                <input type="text" class="form-control" name="username" required>
+                {% endif %}
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Email</label>
+                <input type="email" class="form-control" name="email" 
+                       value="{{ edit_user.email if edit_user else '' }}" required>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Name</label>
+                <input type="text" class="form-control" name="name" 
+                       value="{{ edit_user.name if edit_user else '' }}">
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Password {{ '(leave blank to keep current)' if edit_user else '' }}</label>
+                <input type="password" class="form-control" name="password" 
+                       {{ '' if edit_user else 'required' }}>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Campus Access</label>
+                {% if edit_user and edit_user.is_admin %}
+                <p class="text-muted">Admins have access to all campuses</p>
+                {% else %}
+                <div style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 4px;">
+                    {% for campus in campuses %}
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" name="campus_ids" 
+                               id="campus_{{ campus.id }}" value="{{ campus.id }}"
+                               {{ 'checked' if edit_user and campus in edit_user.campuses else '' }}>
+                        <label class="form-check-label" for="campus_{{ campus.id }}">
+                            {{ campus.name }}
+                        </label>
+                    </div>
+                    {% endfor %}
+                </div>
+                <small class="text-muted">Select campuses this user can access</small>
+                {% endif %}
+            </div>
+
+            <div class="form-check mb-3">
+                <input type="checkbox" class="form-check-input" name="is_admin" id="is_admin" value="true"
+                       {{ 'checked' if edit_user and edit_user.is_admin else '' }}>
+                <label class="form-check-label" for="is_admin">Administrator (full access)</label>
+            </div>
+
+            {% if edit_user %}
+            <div class="form-check mb-3">
+                <input type="checkbox" class="form-check-input" name="is_active" id="is_active" value="true"
+                       {{ 'checked' if edit_user.is_active else '' }}>
+                <label class="form-check-label" for="is_active">Active</label>
+            </div>
+            {% endif %}
+
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-check"></i> {{ 'Update' if edit_user else 'Create' }}
+            </button>
+
+            {% if edit_user %}
+            <button type="button" class="btn btn-outline-warning" 
+                    onclick="if(confirm('Reset 2FA for this user?')) document.getElementById('reset2fa').submit();">
+                <i class="bi bi-shield-x"></i> Reset 2FA
+            </button>
+            {% endif %}
+        </form>
+
+        {% if edit_user %}
+        <form id="reset2fa" method="POST" action="/admin/users/{{ edit_user.id }}/reset-2fa" style="display:none;"></form>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

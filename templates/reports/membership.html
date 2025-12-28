@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Membership Trends - ParishStaq Portal{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-graph-up"></i> Membership Trends</h2>
+    <a href="/reports" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back to Reports
+    </a>
+</div>
+
+{% if error %}
+<div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+<!-- Campus Filter -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">Campus</label>
+                <select name="campus_id" class="form-select">
+                    <option value="">All Campuses</option>
+                    {% for c in campuses %}
+                    <option value="{{ c.campus_id }}" {{ 'selected' if campus and campus.campus_id == c.campus_id else '' }}>
+                        {{ c.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-filter"></i> Filter
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Monthly New Members Chart -->
+<div class="card mb-4">
+    <div class="card-header">
+        <i class="bi bi-calendar3"></i> New Members by Month (Last 12 Months)
+        {% if campus %}
+        <span class="badge bg-primary ms-2">{{ campus.name }}</span>
+        {% endif %}
+    </div>
+    <div class="card-body">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Month</th>
+                    <th>New Members</th>
+                    <th>Trend</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set max_count = monthly_data | map(attribute='count') | max | default(1) %}
+                {% for month in monthly_data %}
+                <tr>
+                    <td>{{ month.month }}</td>
+                    <td>{{ month.count | int }}</td>
+                    <td style="width: 50%;">
+                        <div class="progress" style="height: 25px;">
+                            {% set pct = (month.count / max_count * 100) if max_count > 0 else 0 %}
+                            <div class="progress-bar bg-success" role="progressbar" 
+                                 style="width: {{ pct }}%">
+                                {{ month.count }}
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Summary -->
+<div class="row">
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                {% set total_new = monthly_data | sum(attribute='count') %}
+                <h3 class="text-primary">{{ total_new | int }}</h3>
+                <p class="text-muted mb-0">Total New (12 months)</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                {% set avg_new = (total_new / 12) if monthly_data else 0 %}
+                <h3 class="text-info">{{ "%.1f" | format(avg_new) }}</h3>
+                <p class="text-muted mb-0">Monthly Average</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                {% if monthly_data and monthly_data | length > 0 %}
+                <h3 class="text-success">{{ monthly_data[-1].count | int }}</h3>
+                {% else %}
+                <h3 class="text-success">0</h3>
+                {% endif %}
+                <p class="text-muted mb-0">This Month</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -11,7 +11,7 @@ import io
 from datetime import datetime, timedelta
 
 from .auth import get_current_user, require_auth, can_access_campus
-from .models import PortalCampus, get_session
+from .models import get_session
 
 # Add path for mirror database
 sys.path.insert(0, '/opt/portal_app/aosParishStaq/src')
@@ -23,6 +23,7 @@ templates = Jinja2Templates(directory=templates_path)
 
 
 @router.get("/", response_class=HTMLResponse)
+# Reports home needs mirror db
 @require_auth
 async def reports_home(request: Request):
     """Reports home page"""
@@ -30,13 +31,14 @@ async def reports_home(request: Request):
     if not user:
         return RedirectResponse(url="/auth/login", status_code=303)
     
-    db = get_session()
+    from mirror_database import get_mirror_db, Campus
+    mirror = get_mirror_db()
     try:
         if user['is_admin']:
-            campuses = db.query(PortalCampus).filter(PortalCampus.active == True).order_by(PortalCampus.name).all()
+            campuses = mirror.session.query(Campus).filter(Campus.active == True).order_by(Campus.name).all()
         else:
             campus_ids = [c['id'] for c in user.get('campuses', [])]
-            campuses = db.query(PortalCampus).filter(PortalCampus.id.in_(campus_ids)).order_by(PortalCampus.name).all()
+            campuses = mirror.session.query(Campus).filter(Campus.campus_id.in_(campus_ids)).order_by(Campus.name).all()
         
         return templates.TemplateResponse("reports/index.html", {
             "request": request,
@@ -82,40 +84,40 @@ async def demographics_report(
         total = query.count()
         active = query.filter(Individual.active == True).count()
         
-        # Age distribution (if birthdate available)
+        # Membership tenure distribution
         today = datetime.now().date()
-        age_groups = {
-            '0-17': 0,
-            '18-30': 0,
-            '31-50': 0,
-            '51-70': 0,
-            '71+': 0,
+        tenure_groups = {
+            '0-1 years': 0,
+            '2-5 years': 0,
+            '6-10 years': 0,
+            '11-20 years': 0,
+            '20+ years': 0,
             'Unknown': 0
         }
         
         for ind in query.all():
-            if ind.birth_date:
-                age = (today - ind.birth_date).days // 365
-                if age < 18:
-                    age_groups['0-17'] += 1
-                elif age <= 30:
-                    age_groups['18-30'] += 1
-                elif age <= 50:
-                    age_groups['31-50'] += 1
-                elif age <= 70:
-                    age_groups['51-70'] += 1
+            if ind.membership_date:
+                age = (today - ind.membership_date).days // 365
+                if age <= 1:
+                    tenure_groups['0-1 years'] += 1
+                elif age <= 5:
+                    tenure_groups['2-5 years'] += 1
+                elif age <= 10:
+                    tenure_groups['6-10 years'] += 1
+                elif age <= 20:
+                    tenure_groups['11-20 years'] += 1
                 else:
-                    age_groups['71+'] += 1
+                    tenure_groups['20+ years'] += 1
             else:
-                age_groups['Unknown'] += 1
+                tenure_groups['Unknown'] += 1
         
         # Get campuses for filter
         db = get_session()
         if user['is_admin']:
-            campuses = db.query(PortalCampus).filter(PortalCampus.active == True).order_by(PortalCampus.name).all()
+            campuses = mirror.session.query(Campus).filter(Campus.active == True).order_by(Campus.name).all()
         else:
             campus_ids_list = [c['id'] for c in user.get('campuses', [])]
-            campuses = db.query(PortalCampus).filter(PortalCampus.id.in_(campus_ids_list)).order_by(PortalCampus.name).all()
+            campuses = mirror.session.query(Campus).filter(Campus.campus_id.in_(campus_ids_list)).order_by(Campus.name).all()
         db.close()
         
         return templates.TemplateResponse("reports/demographics.html", {
@@ -127,7 +129,7 @@ async def demographics_report(
             "total": total,
             "active": active,
             "inactive": total - active,
-            "age_groups": age_groups
+            "tenure_groups": tenure_groups
         })
     except Exception as e:
         return templates.TemplateResponse("error.html", {
@@ -166,8 +168,8 @@ async def membership_report(
             month_end = month_start + timedelta(days=30)
             
             query = mirror.session.query(Individual).filter(
-                Individual.created_at >= month_start,
-                Individual.created_at < month_end
+                Individual.mirror_created_at >= month_start,
+                Individual.mirror_created_at < month_end
             )
             if campus_id:
                 query = query.filter(Individual.campus_id == campus_id)
@@ -180,10 +182,10 @@ async def membership_report(
         # Get campuses for filter
         db = get_session()
         if user['is_admin']:
-            campuses = db.query(PortalCampus).filter(PortalCampus.active == True).order_by(PortalCampus.name).all()
+            campuses = mirror.session.query(Campus).filter(Campus.active == True).order_by(Campus.name).all()
         else:
             campus_ids_list = [c['id'] for c in user.get('campuses', [])]
-            campuses = db.query(PortalCampus).filter(PortalCampus.id.in_(campus_ids_list)).order_by(PortalCampus.name).all()
+            campuses = mirror.session.query(Campus).filter(Campus.campus_id.in_(campus_ids_list)).order_by(Campus.name).all()
         db.close()
         
         return templates.TemplateResponse("reports/membership.html", {
@@ -237,10 +239,10 @@ async def export_individuals(
                 ind.last_name,
                 ind.email,
                 ind.phone,
-                ind.birth_date.isoformat() if ind.birth_date else ind.membership_date.isoformat() if ind.membership_date else '',
+                ind.membership_date.isoformat() if ind.membership_date else ind.membership_date.isoformat() if ind.membership_date else '',
                 ind.gender,
                 'Yes' if ind.active else 'No',
-                ind.created_at.isoformat() if ind.created_at else ''
+                ind.mirror_created_at.isoformat() if ind.mirror_created_at else ''
             ])
         
         output.seek(0)

@@ -7,7 +7,10 @@ from fastapi.templating import Jinja2Templates
 import os
 
 from .auth import get_current_user, require_admin
-from .models import PortalUser, PortalCampus, get_session
+from .models import PortalUser, get_session
+import sys
+sys.path.insert(0, '/opt/portal_app/aosParishStaq')
+from mirror_database import Campus
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -35,7 +38,7 @@ async def new_user_form(request: Request, user: dict = Depends(require_admin)):
     """New user form"""
     db = get_session()
     try:
-        campuses = db.query(PortalCampus).filter(PortalCampus.active == True).order_by(PortalCampus.name).all()
+        campuses = db.query(Campus).filter(Campus.active == True).order_by(Campus.name).all()
         return templates.TemplateResponse("admin/user_form.html", {
             "request": request,
             "user": user,
@@ -72,7 +75,7 @@ async def create_user(
         
         # Add campus assignments
         if campus_ids:
-            campuses = db.query(PortalCampus).filter(PortalCampus.id.in_(campus_ids)).all()
+            campuses = db.query(Campus).filter(Campus.id.in_(campus_ids)).all()
             new_user.campuses = campuses
         
         db.add(new_user)
@@ -93,7 +96,7 @@ async def edit_user_form(request: Request, user_id: int, user: dict = Depends(re
         if not edit_user:
             return RedirectResponse(url="/admin/users", status_code=303)
         
-        campuses = db.query(PortalCampus).filter(PortalCampus.active == True).order_by(PortalCampus.name).all()
+        campuses = db.query(Campus).filter(Campus.active == True).order_by(Campus.name).all()
         return templates.TemplateResponse("admin/user_form.html", {
             "request": request,
             "user": user,
@@ -129,7 +132,7 @@ async def update_user(
         
         # Update campus assignments
         if campus_ids:
-            campuses = db.query(PortalCampus).filter(PortalCampus.id.in_(campus_ids)).all()
+            campuses = db.query(Campus).filter(Campus.id.in_(campus_ids)).all()
             edit_user.campuses = campuses
         else:
             edit_user.campuses = []
@@ -162,7 +165,7 @@ async def list_campuses(request: Request, user: dict = Depends(require_admin)):
     """List all campuses"""
     db = get_session()
     try:
-        campuses = db.query(PortalCampus).order_by(PortalCampus.name).all()
+        campuses = db.query(Campus).order_by(Campus.name).all()
         return templates.TemplateResponse("admin/campuses.html", {
             "request": request,
             "user": user,
@@ -186,13 +189,13 @@ async def sync_campuses(request: Request, user: dict = Depends(require_admin)):
         updated = 0
         
         for mc in mirror_campuses:
-            existing = db.query(PortalCampus).filter(PortalCampus.campus_id == mc.campus_id).first()
+            existing = db.query(Campus).filter(Campus.campus_id == mc.campus_id).first()
             if existing:
                 if existing.name != mc.name:
                     existing.name = mc.name
                     updated += 1
             else:
-                new_campus = PortalCampus(campus_id=mc.campus_id, name=mc.name)
+                new_campus = Campus(campus_id=mc.campus_id, name=mc.name)
                 db.add(new_campus)
                 added += 1
         

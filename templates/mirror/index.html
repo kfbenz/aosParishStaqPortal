@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Mirror Data - ParishStaq Portal{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4">
+        <i class="bi bi-database text-primary"></i> Mirror Database
+    </h1>
+
+    <div class="card">
+        <div class="card-header">Select a Campus</div>
+        <div class="card-body">
+            {% if campuses %}
+            <div class="row g-3">
+                {% for campus in campuses %}
+                <div class="col-md-4">
+                    <a href="/mirror/campus/{{ campus.campus_id }}" class="card h-100 text-decoration-none">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ campus.name }}</h5>
+                            <small class="text-muted">Campus ID: {{ campus.campus_id }}</small>
+                        </div>
+                    </a>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted">No campuses available.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

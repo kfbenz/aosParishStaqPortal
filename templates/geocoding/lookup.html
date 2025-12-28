@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}Address Lookup{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-search text-primary"></i> Address Lookup</h1>
+        <a href="/geocoding" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Dashboard
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle"></i> {{ error }}
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <!-- Lookup Form -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-geo-alt"></i> Enter Address
+                </div>
+                <div class="card-body">
+                    <form method="post" action="/geocoding/lookup">
+                        <div class="mb-3">
+                            <label for="street" class="form-label">Street Address</label>
+                            <input type="text" class="form-control" id="street" name="street" 
+                                   value="{{ street or '' }}" required
+                                   placeholder="123 Main St">
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="city" class="form-label">City</label>
+                                <input type="text" class="form-control" id="city" name="city"
+                                       value="{{ city or '' }}" required
+                                       placeholder="Seattle">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="state" class="form-label">State</label>
+                                <input type="text" class="form-control" id="state" name="state"
+                                       value="{{ state or 'WA' }}" maxlength="2"
+                                       placeholder="WA">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="zip_code" class="form-label">ZIP</label>
+                                <input type="text" class="form-control" id="zip_code" name="zip_code"
+                                       value="{{ zip_code or '' }}" maxlength="10"
+                                       placeholder="98101">
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-geo-alt-fill"></i> Geocode Address
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- API Usage Example -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <i class="bi bi-code-slash"></i> API Usage
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">You can also geocode via API:</p>
+                    <pre class="bg-light p-3 rounded"><code>GET /geocoding/api/geocode?street=123+Main+St&city=Seattle&state=WA&zip_code=98101</code></pre>
+                    <p class="text-muted mb-0">
+                        <small>Returns JSON with lat/lng coordinates.</small>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results -->
+        <div class="col-md-6">
+            {% if result %}
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <i class="bi bi-check-circle"></i> Geocoding Result
+                </div>
+                <div class="card-body">
+                    <table class="table table-borderless">
+                        <tr>
+                            <th style="width: 40%">Latitude</th>
+                            <td><code>{{ result.lat }}</code></td>
+                        </tr>
+                        <tr>
+                            <th>Longitude</th>
+                            <td><code>{{ result.lng }}</code></td>
+                        </tr>
+                        <tr>
+                            <th>Accuracy</th>
+                            <td>
+                                {% if result.accuracy == 'ROOFTOP' %}
+                                <span class="badge bg-success">{{ result.accuracy }}</span>
+                                <small class="text-muted">- Precise address location</small>
+                                {% elif result.accuracy == 'RANGE_INTERPOLATED' %}
+                                <span class="badge bg-info">{{ result.accuracy }}</span>
+                                <small class="text-muted">- Between two addresses</small>
+                                {% elif result.accuracy == 'GEOMETRIC_CENTER' %}
+                                <span class="badge bg-info">{{ result.accuracy }}</span>
+                                <small class="text-muted">- Center of area</small>
+                                {% else %}
+                                <span class="badge bg-warning text-dark">{{ result.accuracy }}</span>
+                                <small class="text-muted">- Approximate location</small>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Confidence</th>
+                            <td>
+                                {% if result.confidence == 'high' %}
+                                <span class="badge bg-success">{{ result.confidence }}</span>
+                                {% elif result.confidence == 'medium' %}
+                                <span class="badge bg-info">{{ result.confidence }}</span>
+                                {% else %}
+                                <span class="badge bg-warning text-dark">{{ result.confidence }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Formatted Address</th>
+                            <td>{{ result.formatted_address }}</td>
+                        </tr>
+                        <tr>
+                            <th>From Cache</th>
+                            <td>
+                                {% if result.cached %}
+                                <span class="badge bg-secondary">Yes (no API call)</span>
+                                {% else %}
+                                <span class="badge bg-primary">No (new API call)</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% if result.cache_id %}
+                        <tr>
+                            <th>Cache Entry</th>
+                            <td>
+                                <a href="/geocoding/cache/{{ result.cache_id }}" class="btn btn-sm btn-outline-secondary">
+                                    View Details
+                                </a>
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </table>
+
+                    <!-- Map Preview -->
+                    <div class="mt-3">
+                        <h6>Location Preview</h6>
+                        <div id="map" style="height: 300px; border-radius: 8px;"></div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="card bg-light">
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-geo-alt text-muted" style="font-size: 3rem;"></i>
+                    <p class="text-muted mt-3">Enter an address to see geocoding results.</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% if result %}
+<!-- Leaflet Map -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var lat = {{ result.lat }};
+    var lng = {{ result.lng }};
+    
+    var map = L.map('map').setView([lat, lng], 16);
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+    
+    L.marker([lat, lng])
+        .addTo(map)
+        .bindPopup('{{ result.formatted_address }}')
+        .openPopup();
+});
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,295 @@
+{% extends "base.html" %}
+
+{% block title %}Family Geocoding{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-people-fill text-primary"></i> Family Geocoding</h1>
+        <div>
+            <a href="/geocoding" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Dashboard
+            </a>
+            <button id="batchBtn" class="btn btn-success" onclick="showBatchModal()">
+                <i class="bi bi-lightning-fill"></i> Batch Geocode
+            </button>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle"></i> {{ error }}
+    </div>
+    {% endif %}
+
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Total Families</h5>
+                    <h2>{{ "{:,}".format(total_families) }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Geocoded</h5>
+                    <h2>{{ "{:,}".format(geocoded_count) }}</h2>
+                    <small>{{ "%.1f"|format(geocoded_count / total_families * 100 if total_families else 0) }}% coverage</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-warning text-dark">
+                <div class="card-body">
+                    <h5 class="card-title">Pending</h5>
+                    <h2>{{ "{:,}".format(pending_count) }}</h2>
+                    <small>Awaiting geocoding</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress Bar -->
+    {% set pct = (geocoded_count / total_families * 100) if total_families else 0 %}
+    <div class="mb-4">
+        <div class="progress" style="height: 25px;">
+            <div class="progress-bar bg-success" role="progressbar" 
+                 style="width: {{ pct }}%"
+                 aria-valuenow="{{ pct }}" aria-valuemin="0" aria-valuemax="100">
+                {{ "%.1f"|format(pct) }}% Complete
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" action="/geocoding/families" class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Campus</label>
+                    <select class="form-select" name="campus_id">
+                        <option value="">All Campuses</option>
+                        {% for c in campuses %}
+                        <option value="{{ c.campus_id }}" {% if campus_id == c.campus_id %}selected{% endif %}>
+                            {{ c.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Status</label>
+                    <select class="form-select" name="status">
+                        <option value="all" {% if status == 'all' %}selected{% endif %}>All Families</option>
+                        <option value="geocoded" {% if status == 'geocoded' %}selected{% endif %}>Geocoded</option>
+                        <option value="pending" {% if status == 'pending' %}selected{% endif %}>Pending</option>
+                        <option value="failed" {% if status == 'failed' %}selected{% endif %}>Failed</option>
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-funnel"></i> Filter
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Results -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span>Showing {{ families|length }} of {{ "{:,}".format(total) }} families</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Family Name</th>
+                            <th>Address</th>
+                            <th>City</th>
+                            <th>ZIP</th>
+                            <th>Coordinates</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for family in families %}
+                        <tr>
+                            <td>{{ family.family_name }}</td>
+                            <td>{{ family.address_street or '-' }}</td>
+                            <td>{{ family.address_city or '-' }}</td>
+                            <td>{{ family.address_zip or '-' }}</td>
+                            <td>
+                                {% if family.latitude and family.longitude %}
+                                <code class="small">{{ "%.5f"|format(family.latitude) }}, {{ "%.5f"|format(family.longitude) }}</code>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if family.latitude and family.longitude %}
+                                <span class="badge bg-success">Geocoded</span>
+                                {% elif family.geocode_status == 'failed' %}
+                                <span class="badge bg-danger">Failed</span>
+                                {% elif family.geocode_status == 'error' %}
+                                <span class="badge bg-warning text-dark">Error</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Pending</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center py-4 text-muted">
+                                No families found matching criteria.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    {% if total_pages > 1 %}
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if page > 1 %}
+            <li class="page-item">
+                <a class="page-link" href="/geocoding/families?page={{ page - 1 }}&campus_id={{ campus_id or '' }}&status={{ status }}&per_page={{ per_page }}">
+                    Previous
+                </a>
+            </li>
+            {% endif %}
+            
+            {% for p in range(1, total_pages + 1) %}
+                {% if p == page %}
+                <li class="page-item active"><span class="page-link">{{ p }}</span></li>
+                {% elif p <= 3 or p >= total_pages - 2 or (p >= page - 1 and p <= page + 1) %}
+                <li class="page-item">
+                    <a class="page-link" href="/geocoding/families?page={{ p }}&campus_id={{ campus_id or '' }}&status={{ status }}&per_page={{ per_page }}">{{ p }}</a>
+                </li>
+                {% elif p == 4 or p == total_pages - 3 %}
+                <li class="page-item disabled"><span class="page-link">...</span></li>
+                {% endif %}
+            {% endfor %}
+            
+            {% if page < total_pages %}
+            <li class="page-item">
+                <a class="page-link" href="/geocoding/families?page={{ page + 1 }}&campus_id={{ campus_id or '' }}&status={{ status }}&per_page={{ per_page }}">
+                    Next
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+
+<!-- Batch Geocode Modal -->
+<div class="modal fade" id="batchModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Batch Geocode Families</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Campus (optional)</label>
+                    <select class="form-select" id="batchCampus">
+                        <option value="">All Campuses</option>
+                        {% for c in campuses %}
+                        <option value="{{ c.campus_id }}">{{ c.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Batch Size</label>
+                    <select class="form-select" id="batchLimit">
+                        <option value="50">50 families</option>
+                        <option value="100" selected>100 families</option>
+                        <option value="250">250 families</option>
+                        <option value="500">500 families (max)</option>
+                    </select>
+                </div>
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>Note:</strong> Only families without coordinates will be geocoded.
+                    Already geocoded addresses use the cache (no API cost).
+                </div>
+                <div id="batchProgress" class="d-none">
+                    <div class="progress mb-2">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                             id="batchProgressBar" style="width: 0%"></div>
+                    </div>
+                    <small id="batchStatus" class="text-muted"></small>
+                </div>
+                <div id="batchResults" class="d-none">
+                    <h6>Results</h6>
+                    <ul class="list-unstyled mb-0" id="batchResultsList"></ul>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-success" id="startBatchBtn" onclick="startBatch()">
+                    <i class="bi bi-lightning-fill"></i> Start Geocoding
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function showBatchModal() {
+    var modal = new bootstrap.Modal(document.getElementById('batchModal'));
+    modal.show();
+}
+
+function startBatch() {
+    var campus = document.getElementById('batchCampus').value;
+    var limit = document.getElementById('batchLimit').value;
+    
+    document.getElementById('batchProgress').classList.remove('d-none');
+    document.getElementById('batchResults').classList.add('d-none');
+    document.getElementById('startBatchBtn').disabled = true;
+    document.getElementById('batchStatus').textContent = 'Starting...';
+    
+    fetch('/geocoding/families/geocode', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            campus_id: campus ? parseInt(campus) : null,
+            limit: parseInt(limit)
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('batchProgressBar').style.width = '100%';
+        
+        if (data.success) {
+            var results = data.results;
+            var html = '<li class="text-success"><i class="bi bi-check"></i> Geocoded: ' + results.geocoded + '</li>';
+            html += '<li class="text-info"><i class="bi bi-database"></i> From cache: ' + results.cached + '</li>';
+            html += '<li class="text-danger"><i class="bi bi-x"></i> Failed: ' + results.failed + '</li>';
+            
+            document.getElementById('batchResultsList').innerHTML = html;
+            document.getElementById('batchResults').classList.remove('d-none');
+            document.getElementById('batchStatus').textContent = 'Complete!';
+        } else {
+            document.getElementById('batchStatus').textContent = 'Error: ' + data.error;
+        }
+        
+        document.getElementById('startBatchBtn').disabled = false;
+    })
+    .catch(err => {
+        document.getElementById('batchStatus').textContent = 'Error: ' + err;
+        document.getElementById('startBatchBtn').disabled = false;
+    });
+}
+</script>
+{% endblock %}

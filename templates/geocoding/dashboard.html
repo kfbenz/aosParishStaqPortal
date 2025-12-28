@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+
+{% block title %}Geocoding Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-geo-alt-fill text-primary"></i> Geocoding Dashboard</h1>
+        <div>
+            <a href="/geocoding/lookup" class="btn btn-primary">
+                <i class="bi bi-search"></i> Lookup Address
+            </a>
+            <a href="/geocoding/map" class="btn btn-success">
+                <i class="bi bi-map"></i> View Map
+            </a>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle"></i> {{ error }}
+    </div>
+    {% endif %}
+
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Cached Addresses</h5>
+                    <h2>{{ "{:,}".format(total_cached) }}</h2>
+                    <small>Unique addresses geocoded</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5 class="card-title">High Accuracy</h5>
+                    <h2>{{ "{:,}".format(accuracy_breakdown.get('ROOFTOP', 0)) }}</h2>
+                    <small>Rooftop-level precision</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Medium Accuracy</h5>
+                    {% set medium = accuracy_breakdown.get('RANGE_INTERPOLATED', 0) + accuracy_breakdown.get('GEOMETRIC_CENTER', 0) %}
+                    <h2>{{ "{:,}".format(medium) }}</h2>
+                    <small>Interpolated/geometric</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body">
+                    <h5 class="card-title">Approximate</h5>
+                    <h2>{{ "{:,}".format(accuracy_breakdown.get('APPROXIMATE', 0)) }}</h2>
+                    <small>Lower precision</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Recent Geocodes -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="bi bi-clock-history"></i> Recent Geocodes
+                </div>
+                <div class="card-body">
+                    {% if recent %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Address</th>
+                                    <th>Accuracy</th>
+                                    <th>When</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for entry in recent %}
+                                <tr>
+                                    <td>
+                                        <a href="/geocoding/cache/{{ entry.id }}">
+                                            {{ entry.street }}, {{ entry.city }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        {% if entry.accuracy == 'ROOFTOP' %}
+                                        <span class="badge bg-success">{{ entry.accuracy }}</span>
+                                        {% elif entry.accuracy in ['RANGE_INTERPOLATED', 'GEOMETRIC_CENTER'] %}
+                                        <span class="badge bg-info">{{ entry.accuracy }}</span>
+                                        {% else %}
+                                        <span class="badge bg-warning text-dark">{{ entry.accuracy }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <small>{{ entry.geocoded_at.strftime('%m/%d %H:%M') if entry.geocoded_at else 'N/A' }}</small>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No geocoded addresses yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Most Used Addresses -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="bi bi-star-fill"></i> Most Used Addresses
+                </div>
+                <div class="card-body">
+                    {% if most_used %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Address</th>
+                                    <th>Lookups</th>
+                                    <th>Accuracy</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for entry in most_used %}
+                                <tr>
+                                    <td>
+                                        <a href="/geocoding/cache/{{ entry.id }}">
+                                            {{ entry.street }}, {{ entry.city }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ entry.usage_count }}</span>
+                                    </td>
+                                    <td>
+                                        {% if entry.accuracy == 'ROOFTOP' %}
+                                        <span class="badge bg-success">{{ entry.accuracy }}</span>
+                                        {% elif entry.accuracy in ['RANGE_INTERPOLATED', 'GEOMETRIC_CENTER'] %}
+                                        <span class="badge bg-info">{{ entry.accuracy }}</span>
+                                        {% else %}
+                                        <span class="badge bg-warning text-dark">{{ entry.accuracy }}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No usage data yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Links -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-grid"></i> Geocoding Tools
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <a href="/geocoding/lookup" class="btn btn-outline-primary w-100 py-3">
+                                <i class="bi bi-search fs-3 d-block mb-2"></i>
+                                Single Address Lookup
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="/geocoding/cache" class="btn btn-outline-secondary w-100 py-3">
+                                <i class="bi bi-database fs-3 d-block mb-2"></i>
+                                Browse Cache
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="/geocoding/families" class="btn btn-outline-success w-100 py-3">
+                                <i class="bi bi-people fs-3 d-block mb-2"></i>
+                                Family Geocoding
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="/geocoding/stats" class="btn btn-outline-info w-100 py-3">
+                                <i class="bi bi-bar-chart fs-3 d-block mb-2"></i>
+                                Statistics & Costs
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

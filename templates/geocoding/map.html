@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+
+{% block title %}Family Map{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+<style>
+    #map { height: calc(100vh - 200px); min-height: 500px; }
+    .info-panel { 
+        position: absolute; 
+        top: 10px; 
+        right: 10px; 
+        z-index: 1000; 
+        background: white; 
+        padding: 10px 15px; 
+        border-radius: 8px; 
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1><i class="bi bi-map-fill text-primary"></i> Family Map</h1>
+        <div>
+            <a href="/geocoding" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Dashboard
+            </a>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle"></i> {{ error }}
+    </div>
+    {% endif %}
+
+    <!-- Controls -->
+    <div class="card mb-3">
+        <div class="card-body py-2">
+            <div class="row align-items-center">
+                <div class="col-md-4">
+                    <label class="form-label mb-0">Campus Filter</label>
+                    <select class="form-select form-select-sm" id="campusFilter" onchange="loadFamilies()">
+                        <option value="">All Campuses</option>
+                        {% for c in campuses %}
+                        <option value="{{ c.campus_id }}" {% if campus_id == c.campus_id %}selected{% endif %}>
+                            {{ c.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label mb-0">Display</label>
+                    <div class="btn-group btn-group-sm w-100" role="group">
+                        <input type="radio" class="btn-check" name="displayMode" id="modeCluster" checked onchange="setDisplayMode('cluster')">
+                        <label class="btn btn-outline-primary" for="modeCluster">Clusters</label>
+                        <input type="radio" class="btn-check" name="displayMode" id="modeMarkers" onchange="setDisplayMode('markers')">
+                        <label class="btn btn-outline-primary" for="modeMarkers">Markers</label>
+                        <input type="radio" class="btn-check" name="displayMode" id="modeHeat" onchange="setDisplayMode('heat')">
+                        <label class="btn btn-outline-primary" for="modeHeat">Heat Map</label>
+                    </div>
+                </div>
+                <div class="col-md-4 text-end">
+                    <span class="text-muted" id="markerCount">Loading...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Map -->
+    <div class="card">
+        <div class="card-body p-0 position-relative">
+            <div id="map"></div>
+            <div class="info-panel" id="infoPanel" style="display: none;">
+                <h6 id="infoTitle">Family Details</h6>
+                <div id="infoContent"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Leaflet + Plugins -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+
+<script>
+// Initialize map centered on Seattle area
+var map = L.map('map').setView([47.6062, -122.3321], 10);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+}).addTo(map);
+
+var markers = L.markerClusterGroup();
+var markerLayer = L.layerGroup();
+var heatLayer = null;
+var familyData = [];
+var displayMode = 'cluster';
+
+function loadFamilies() {
+    var campus = document.getElementById('campusFilter').value;
+    var url = '/geocoding/api/map/families';
+    if (campus) {
+        url += '?campus_id=' + campus;
+    }
+    
+    document.getElementById('markerCount').textContent = 'Loading...';
+    
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                familyData = data.data;
+                document.getElementById('markerCount').textContent = 
+                    data.count.toLocaleString() + ' families';
+                updateDisplay();
+            } else {
+                alert('Error loading families: ' + data.error);
+            }
+        })
+        .catch(err => {
+            alert('Error: ' + err);
+        });
+}
+
+function updateDisplay() {
+    // Clear existing layers
+    markers.clearLayers();
+    markerLayer.clearLayers();
+    if (heatLayer) {
+        map.removeLayer(heatLayer);
+        heatLayer = null;
+    }
+    
+    if (displayMode === 'cluster') {
+        familyData.forEach(function(f) {
+            var marker = L.marker([f.lat, f.lng])
+                .bindPopup('<strong>' + f.name + '</strong><br>' + f.address);
+            markers.addLayer(marker);
+        });
+        map.addLayer(markers);
+    }
+    else if (displayMode === 'markers') {
+        familyData.forEach(function(f) {
+            var marker = L.circleMarker([f.lat, f.lng], {
+                radius: 6,
+                fillColor: '#3388ff',
+                color: '#fff',
+                weight: 1,
+                opacity: 1,
+                fillOpacity: 0.7
+            }).bindPopup('<strong>' + f.name + '</strong><br>' + f.address);
+            markerLayer.addLayer(marker);
+        });
+        map.addLayer(markerLayer);
+    }
+    else if (displayMode === 'heat') {
+        var heatPoints = familyData.map(function(f) {
+            return [f.lat, f.lng, 1];
+        });
+        heatLayer = L.heatLayer(heatPoints, {
+            radius: 25,
+            blur: 15,
+            maxZoom: 17,
+            gradient: {
+                0.4: 'blue',
+                0.6: 'cyan',
+                0.7: 'lime',
+                0.8: 'yellow',
+                1.0: 'red'
+            }
+        });
+        map.addLayer(heatLayer);
+    }
+    
+    // Fit bounds if we have data
+    if (familyData.length > 0) {
+        var bounds = L.latLngBounds(familyData.map(function(f) {
+            return [f.lat, f.lng];
+        }));
+        map.fitBounds(bounds, { padding: [50, 50] });
+    }
+}
+
+function setDisplayMode(mode) {
+    displayMode = mode;
+    updateDisplay();
+}
+
+// Load initial data
+loadFamilies();
+</script>
+{% endblock %}

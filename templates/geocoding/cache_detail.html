@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+
+{% block title %}Cache Entry Detail{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-database text-primary"></i> Cache Entry #{{ entry.id }}</h1>
+        <div>
+            <a href="/geocoding/cache" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Cache
+            </a>
+            <button id="refreshBtn" class="btn btn-warning" onclick="refreshEntry()">
+                <i class="bi bi-arrow-clockwise"></i> Re-Geocode
+            </button>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Address Info -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="bi bi-geo-alt"></i> Address Information
+                </div>
+                <div class="card-body">
+                    <table class="table table-borderless">
+                        <tr>
+                            <th style="width: 35%">Street</th>
+                            <td>{{ entry.street }}</td>
+                        </tr>
+                        <tr>
+                            <th>City</th>
+                            <td>{{ entry.city }}</td>
+                        </tr>
+                        <tr>
+                            <th>State</th>
+                            <td>{{ entry.state }}</td>
+                        </tr>
+                        <tr>
+                            <th>ZIP Code</th>
+                            <td>{{ entry.zip_code }}</td>
+                        </tr>
+                        <tr>
+                            <th>Cache Key</th>
+                            <td><code class="small">{{ entry.address_key }}</code></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="bi bi-crosshair"></i> Geocoding Results
+                </div>
+                <div class="card-body">
+                    <table class="table table-borderless">
+                        <tr>
+                            <th style="width: 35%">Latitude</th>
+                            <td><code>{{ entry.latitude }}</code></td>
+                        </tr>
+                        <tr>
+                            <th>Longitude</th>
+                            <td><code>{{ entry.longitude }}</code></td>
+                        </tr>
+                        <tr>
+                            <th>Formatted Address</th>
+                            <td>{{ entry.formatted_address }}</td>
+                        </tr>
+                        <tr>
+                            <th>Place ID</th>
+                            <td><code class="small">{{ entry.place_id }}</code></td>
+                        </tr>
+                        <tr>
+                            <th>Accuracy</th>
+                            <td>
+                                {% if entry.accuracy == 'ROOFTOP' %}
+                                <span class="badge bg-success">{{ entry.accuracy }}</span>
+                                <small class="text-muted ms-2">Precise address location</small>
+                                {% elif entry.accuracy == 'RANGE_INTERPOLATED' %}
+                                <span class="badge bg-info">{{ entry.accuracy }}</span>
+                                <small class="text-muted ms-2">Between two addresses</small>
+                                {% elif entry.accuracy == 'GEOMETRIC_CENTER' %}
+                                <span class="badge bg-info">{{ entry.accuracy }}</span>
+                                <small class="text-muted ms-2">Center of area</small>
+                                {% else %}
+                                <span class="badge bg-warning text-dark">{{ entry.accuracy }}</span>
+                                <small class="text-muted ms-2">Approximate location</small>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Confidence</th>
+                            <td>
+                                {% if entry.confidence == 'high' %}
+                                <span class="badge bg-success">{{ entry.confidence }}</span>
+                                {% elif entry.confidence == 'medium' %}
+                                <span class="badge bg-info">{{ entry.confidence }}</span>
+                                {% else %}
+                                <span class="badge bg-warning text-dark">{{ entry.confidence }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Provider</th>
+                            <td>{{ entry.geocode_provider }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-clock"></i> Metadata
+                </div>
+                <div class="card-body">
+                    <table class="table table-borderless">
+                        <tr>
+                            <th style="width: 35%">Geocoded At</th>
+                            <td>{{ entry.geocoded_at.strftime('%Y-%m-%d %H:%M:%S') if entry.geocoded_at else 'N/A' }}</td>
+                        </tr>
+                        <tr>
+                            <th>Created At</th>
+                            <td>{{ entry.created_at.strftime('%Y-%m-%d %H:%M:%S') if entry.created_at else 'N/A' }}</td>
+                        </tr>
+                        <tr>
+                            <th>Updated At</th>
+                            <td>{{ entry.updated_at.strftime('%Y-%m-%d %H:%M:%S') if entry.updated_at else 'N/A' }}</td>
+                        </tr>
+                        <tr>
+                            <th>Usage Count</th>
+                            <td><span class="badge bg-secondary">{{ entry.usage_count or 0 }} lookups</span></td>
+                        </tr>
+                        <tr>
+                            <th>Last Used</th>
+                            <td>{{ entry.last_used_at.strftime('%Y-%m-%d %H:%M:%S') if entry.last_used_at else 'Never' }}</td>
+                        </tr>
+                        {% if entry.error_message %}
+                        <tr>
+                            <th>Last Error</th>
+                            <td class="text-danger">{{ entry.error_message }}</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Map and API Response -->
+        <div class="col-md-6">
+            <!-- Map -->
+            {% if entry.latitude and entry.longitude %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="bi bi-map"></i> Location Map
+                </div>
+                <div class="card-body p-0">
+                    <div id="map" style="height: 350px;"></div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- API Response -->
+            {% if api_response %}
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-code-slash"></i> API Response</span>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="copyResponse()">
+                        <i class="bi bi-clipboard"></i> Copy
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <pre class="bg-dark text-light p-3 mb-0" style="max-height: 400px; overflow: auto;"><code id="apiResponse">{{ api_response | tojson(indent=2) }}</code></pre>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% if entry.latitude and entry.longitude %}
+<!-- Leaflet Map -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var lat = {{ entry.latitude }};
+    var lng = {{ entry.longitude }};
+    
+    var map = L.map('map').setView([lat, lng], 17);
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+    
+    L.marker([lat, lng])
+        .addTo(map)
+        .bindPopup('{{ entry.formatted_address or entry.full_address }}')
+        .openPopup();
+});
+</script>
+{% endif %}
+
+<script>
+function refreshEntry() {
+    if (!confirm('This will make a new API call to re-geocode this address. Continue?')) {
+        return;
+    }
+    
+    fetch('/geocoding/cache/{{ entry.id }}/refresh', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Address re-geocoded successfully!');
+                location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(err => {
+            alert('Error: ' + err);
+        });
+}
+
+function copyResponse() {
+    var text = document.getElementById('apiResponse').textContent;
+    navigator.clipboard.writeText(text).then(() => {
+        alert('Copied to clipboard!');
+    });
+}
+</script>
+{% endblock %}

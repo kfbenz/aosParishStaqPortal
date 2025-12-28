@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+
+{% block title %}Geocoding Statistics{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-bar-chart-fill text-primary"></i> Geocoding Statistics</h1>
+        <a href="/geocoding" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Dashboard
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle"></i> {{ error }}
+        {% if traceback %}
+        <details class="mt-2">
+            <summary>Technical Details</summary>
+            <pre class="small mt-2">{{ traceback }}</pre>
+        </details>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Cost Analysis -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <i class="bi bi-currency-dollar"></i> Cost Analysis
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <h3 class="text-success">${{ "%.2f"|format(cache_stats.get('estimated_savings', 0)) }}</h3>
+                            <small class="text-muted">Estimated Savings</small>
+                        </div>
+                        <div class="col-6">
+                            <h3 class="text-primary">${{ "%.2f"|format(cache_stats.get('total_cost', 0)) }}</h3>
+                            <small class="text-muted">Total API Cost</small>
+                        </div>
+                    </div>
+                    <hr>
+                    <table class="table table-sm table-borderless mb-0">
+                        <tr>
+                            <td>Total cached addresses</td>
+                            <td class="text-end"><strong>{{ "{:,}".format(cache_stats.get('total', 0)) }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Total lookups</td>
+                            <td class="text-end"><strong>{{ "{:,}".format(cache_stats.get('total_usage', 0)) }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td>API calls saved by caching</td>
+                            <td class="text-end text-success"><strong>{{ "{:,}".format(cache_stats.get('api_calls_saved', 0)) }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Cost per 1,000 requests</td>
+                            <td class="text-end">$5.00</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <i class="bi bi-bullseye"></i> Accuracy Distribution
+                </div>
+                <div class="card-body">
+                    {% for acc, count in accuracy_dist %}
+                    {% set total = cache_stats.get('total', 1) %}
+                    {% set pct = (count / total * 100) if total else 0 %}
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>
+                                {% if acc == 'ROOFTOP' %}
+                                <span class="badge bg-success">{{ acc }}</span>
+                                {% elif acc in ['RANGE_INTERPOLATED', 'GEOMETRIC_CENTER'] %}
+                                <span class="badge bg-info">{{ acc }}</span>
+                                {% else %}
+                                <span class="badge bg-warning text-dark">{{ acc or 'Unknown' }}</span>
+                                {% endif %}
+                            </span>
+                            <span class="text-muted">{{ "{:,}".format(count) }} ({{ "%.1f"|format(pct) }}%)</span>
+                        </div>
+                        <div class="progress" style="height: 10px;">
+                            <div class="progress-bar 
+                                {% if acc == 'ROOFTOP' %}bg-success
+                                {% elif acc in ['RANGE_INTERPOLATED', 'GEOMETRIC_CENTER'] %}bg-info
+                                {% else %}bg-warning{% endif %}" 
+                                style="width: {{ pct }}%"></div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No accuracy data available.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Family Coverage -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <i class="bi bi-people"></i> Family Coverage
+                </div>
+                <div class="card-body">
+                    <div class="row text-center mb-3">
+                        <div class="col-4">
+                            <h3>{{ "{:,}".format(family_stats.get('total', 0)) }}</h3>
+                            <small class="text-muted">Total Families</small>
+                        </div>
+                        <div class="col-4">
+                            <h3 class="text-success">{{ "{:,}".format(family_stats.get('geocoded', 0)) }}</h3>
+                            <small class="text-muted">Geocoded</small>
+                        </div>
+                        <div class="col-4">
+                            <h3 class="text-warning">{{ "{:,}".format(family_stats.get('pending', 0)) }}</h3>
+                            <small class="text-muted">Pending</small>
+                        </div>
+                    </div>
+                    {% set pct = family_stats.get('coverage_pct', 0) %}
+                    <div class="progress" style="height: 25px;">
+                        <div class="progress-bar bg-success" style="width: {{ pct }}%">
+                            {{ "%.1f"|format(pct) }}% Complete
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <i class="bi bi-calendar3"></i> Geocodes Over Time
+                </div>
+                <div class="card-body">
+                    <canvas id="monthlyChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Campus Breakdown -->
+    {% if campus_coverage %}
+    <div class="card">
+        <div class="card-header">
+            <i class="bi bi-building"></i> Coverage by Campus
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Campus</th>
+                            <th>Total Families</th>
+                            <th>Geocoded</th>
+                            <th>Coverage</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for name, total, geocoded in campus_coverage %}
+                        {% set geocoded = geocoded or 0 %}
+                        {% set pct = (geocoded / total * 100) if total else 0 %}
+                        <tr>
+                            <td>{{ name }}</td>
+                            <td>{{ "{:,}".format(total) }}</td>
+                            <td>{{ "{:,}".format(geocoded) }}</td>
+                            <td style="width: 30%;">
+                                <div class="d-flex align-items-center">
+                                    <div class="progress flex-grow-1 me-2" style="height: 8px;">
+                                        <div class="progress-bar 
+                                            {% if pct >= 90 %}bg-success
+                                            {% elif pct >= 50 %}bg-info
+                                            {% else %}bg-warning{% endif %}"
+                                            style="width: {{ pct }}%"></div>
+                                    </div>
+                                    <small>{{ "%.0f"|format(pct) }}%</small>
+                                </div>
+                            </td>
+                            <td>
+                                {% if pct < 100 %}
+                                <span class="badge bg-secondary">{{ total - geocoded }} pending</span>
+                                {% else %}
+                                <span class="badge bg-success">Complete</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+{% if monthly_geocodes %}
+var ctx = document.getElementById('monthlyChart').getContext('2d');
+new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: [{% for month, count in monthly_geocodes|reverse %}'{{ month }}'{% if not loop.last %}, {% endif %}{% endfor %}],
+        datasets: [{
+            label: 'Geocoded Addresses',
+            data: [{% for month, count in monthly_geocodes|reverse %}{{ count }}{% if not loop.last %}, {% endif %}{% endfor %}],
+            backgroundColor: 'rgba(54, 162, 235, 0.6)',
+            borderColor: 'rgba(54, 162, 235, 1)',
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        },
+        plugins: {
+            legend: {
+                display: false
+            }
+        }
+    }
+});
+{% endif %}
+</script>
+{% endblock %}

@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Scan Results - Duplicates{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-people text-primary"></i> Scan Results</h1>
+        <div>
+            <a href="/duplicates/scan/{{ scan.id }}/export" class="btn btn-success">
+                <i class="bi bi-download"></i> Export CSV
+            </a>
+            <a href="/duplicates" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+        </div>
+    </div>
+
+    <!-- Scan Info -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <strong>Campus:</strong> {{ scan.campus_name }}
+                </div>
+                <div class="col-md-3">
+                    <strong>Type:</strong> {{ scan.scan_type }}
+                </div>
+                <div class="col-md-3">
+                    <strong>Duplicates Found:</strong> {{ scan.duplicates_found or 0 }}
+                </div>
+                <div class="col-md-3">
+                    <strong>Date:</strong> {{ scan.created_at.strftime('%Y-%m-%d %H:%M') if scan.created_at else '-' }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results -->
+    {% if clusters %}
+    {% for cluster in clusters %}
+    <div class="card mb-3">
+        <div class="card-header">
+            <span class="badge bg-warning text-dark me-2">Cluster {{ loop.index }}</span>
+            {{ cluster.match_type or 'Match' }}
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-sm mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Campus</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for member in cluster.members %}
+                    <tr>
+                        <td>{{ member.individual_id or member.aos_id or '-' }}</td>
+                        <td>{{ member.first_name }} {{ member.last_name }}</td>
+                        <td>{{ member.email or '-' }}</td>
+                        <td>{{ member.campus_name or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> No duplicate clusters found.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

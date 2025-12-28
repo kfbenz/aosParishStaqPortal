@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}{{ error or 'Error' }} - ParishStaq Portal{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card mt-5">
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-exclamation-triangle text-danger" style="font-size: 4rem;"></i>
+                    <h2 class="mt-3">{{ error or 'Error' }}</h2>
+                    <p class="text-muted">{{ message or 'An error occurred.' }}</p>
+                    <a href="/dashboard" class="btn btn-primary mt-3">
+                        <i class="bi bi-house"></i> Back to Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

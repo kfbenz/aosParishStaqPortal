@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - ParishStaq Portal{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4">
+        <i class="bi bi-speedometer2 text-primary"></i> Dashboard
+    </h1>
+
+    {% if stats.error %}
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle"></i> Mirror database connection issue: {{ stats.error }}
+    </div>
+    {% endif %}
+
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Total Individuals</h5>
+                    <h2>{{ "{:,}".format(stats.total_individuals or 0) }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Total Families</h5>
+                    <h2>{{ "{:,}".format(stats.total_families or 0) }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Your Campuses</h5>
+                    <h2>{{ campuses|length }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-lightning"></i> Quick Actions
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <a href="/mirror" class="btn btn-outline-primary w-100 py-3">
+                                <i class="bi bi-database fs-3 d-block mb-2"></i>
+                                Browse Data
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="/duplicates" class="btn btn-outline-warning w-100 py-3">
+                                <i class="bi bi-people fs-3 d-block mb-2"></i>
+                                Find Duplicates
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="/reports" class="btn btn-outline-success w-100 py-3">
+                                <i class="bi bi-file-earmark-bar-graph fs-3 d-block mb-2"></i>
+                                Run Reports
+                            </a>
+                        </div>
+                        <div class="col-md-3">
+                            <a href="/geocoding" class="btn btn-outline-info w-100 py-3">
+                                <i class="bi bi-geo-alt fs-3 d-block mb-2"></i>
+                                Geocoding
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Campuses -->
+    <div class="card">
+        <div class="card-header">
+            <i class="bi bi-building"></i> Your Campuses
+        </div>
+        <div class="card-body">
+            {% if campuses %}
+            <div class="row g-3">
+                {% for campus in campuses %}
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ campus.name }}</h5>
+                            <p class="text-muted mb-2">Campus ID: {{ campus.campus_id }}</p>
+                            <a href="/mirror/campus/{{ campus.campus_id }}" class="btn btn-sm btn-primary">
+                                View Data
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted">No campuses assigned. Contact an administrator.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

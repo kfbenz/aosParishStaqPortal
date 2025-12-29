@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block title %}Upload File - ParishStaq Portal{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/files">Files</a></li>
+        <li class="breadcrumb-item active">Upload</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-upload"></i> Upload File</h2>
+    <a href="/files" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back
+    </a>
+</div>
+
+{% if error %}
+<div class="alert alert-danger">
+    <i class="bi bi-exclamation-triangle"></i> {{ error }}
+</div>
+{% endif %}
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-cloud-upload"></i> Select File
+            </div>
+            <div class="card-body">
+                <form method="POST" action="/files/upload" enctype="multipart/form-data" id="uploadForm">
+                    <div class="mb-4">
+                        <label class="form-label">File</label>
+                        <input type="file" class="form-control form-control-lg" name="file" id="fileInput" required>
+                        <div class="form-text">
+                            Allowed types: {{ allowed_extensions }}
+                            <br>Maximum size: {{ max_size_mb }} MB
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="form-label">Destination Folder</label>
+                        <select class="form-select" name="destination">
+                            <option value="Uploads" selected>Uploads (General)</option>
+                            <option value="Data">Data</option>
+                            <option value="Reports">Reports</option>
+                            <option value="Exports">Exports</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Upload Progress -->
+                    <div class="mb-4 d-none" id="progressContainer">
+                        <label class="form-label">Uploading...</label>
+                        <div class="progress" style="height: 25px;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                 id="progressBar" role="progressbar" style="width: 0%">0%</div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg" id="uploadBtn">
+                            <i class="bi bi-upload"></i> Upload File
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-info-circle"></i> File Preview
+            </div>
+            <div class="card-body text-center" id="filePreview">
+                <i class="bi bi-file-earmark text-muted" style="font-size: 4rem;"></i>
+                <p class="text-muted mt-2">Select a file to see preview</p>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <i class="bi bi-question-circle"></i> Help
+            </div>
+            <div class="card-body">
+                <h6>Supported File Types</h6>
+                <ul class="small">
+                    <li><strong>CSV</strong> - Data exports</li>
+                    <li><strong>Excel</strong> - Spreadsheets (.xlsx, .xls)</li>
+                    <li><strong>JSON</strong> - Configuration files</li>
+                    <li><strong>PDF</strong> - Documents</li>
+                    <li><strong>TXT</strong> - Text files</li>
+                    <li><strong>ZIP</strong> - Archives</li>
+                </ul>
+                
+                <h6>Folder Guide</h6>
+                <ul class="small">
+                    <li><strong>Uploads</strong> - General uploads</li>
+                    <li><strong>Data</strong> - Data files for processing</li>
+                    <li><strong>Reports</strong> - Generated reports</li>
+                    <li><strong>Exports</strong> - Export files</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('fileInput').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    const preview = document.getElementById('filePreview');
+    
+    if (file) {
+        const ext = file.name.split('.').pop().toLowerCase();
+        const icons = {
+            'csv': 'bi-filetype-csv',
+            'xlsx': 'bi-file-earmark-excel',
+            'xls': 'bi-file-earmark-excel',
+            'json': 'bi-filetype-json',
+            'txt': 'bi-file-earmark-text',
+            'pdf': 'bi-file-earmark-pdf',
+            'zip': 'bi-file-earmark-zip'
+        };
+        const icon = icons[ext] || 'bi-file-earmark';
+        
+        const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+        const sizeKB = (file.size / 1024).toFixed(1);
+        const sizeStr = file.size > 1024 * 1024 ? sizeMB + ' MB' : sizeKB + ' KB';
+        
+        preview.innerHTML = `
+            <i class="${icon} text-primary" style="font-size: 4rem;"></i>
+            <p class="mt-2 mb-1"><strong>${file.name}</strong></p>
+            <p class="text-muted small mb-0">Size: ${sizeStr}</p>
+            <p class="text-muted small">Type: ${file.type || 'Unknown'}</p>
+        `;
+        
+        // Check size
+        const maxSize = {{ max_size_mb }} * 1024 * 1024;
+        if (file.size > maxSize) {
+            preview.innerHTML += `
+                <div class="alert alert-danger mt-2 small">
+                    <i class="bi bi-exclamation-triangle"></i> File too large!
+                </div>
+            `;
+        }
+    }
+});
+
+// Show progress on submit
+document.getElementById('uploadForm').addEventListener('submit', function() {
+    document.getElementById('progressContainer').classList.remove('d-none');
+    document.getElementById('uploadBtn').disabled = true;
+    document.getElementById('uploadBtn').innerHTML = '<span class="spinner-border spinner-border-sm"></span> Uploading...';
+    
+    // Simulate progress (actual progress would require XHR)
+    let progress = 0;
+    const interval = setInterval(function() {
+        progress += Math.random() * 15;
+        if (progress > 90) progress = 90;
+        document.getElementById('progressBar').style.width = progress + '%';
+        document.getElementById('progressBar').textContent = Math.round(progress) + '%';
+    }, 200);
+});
+</script>
+{% endblock %}

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Campuses - ParishStaq Portal{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-building"></i> Campuses</h2>
+    <form method="POST" action="/admin/campuses/sync" style="display: inline;">
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-arrow-repeat"></i> Sync from Mirror
+        </button>
+    </form>
+</div>
+
+{% if error %}
+<div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+{% if success %}
+<div class="alert alert-success">{{ success }}</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header">
+        <span>{{ campuses | length }} Campuses</span>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-striped table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>City</th>
+                    <th>State</th>
+                    <th>Active</th>
+                    <th>Coordinates</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for campus in campuses %}
+                <tr>
+                    <td>{{ campus.campus_id }}</td>
+                    <td>{{ campus.name }}</td>
+                    <td>{{ campus.city or '' }}</td>
+                    <td>{{ campus.state or '' }}</td>
+                    <td>
+                        {% if campus.active %}
+                        <span class="badge bg-success">Active</span>
+                        {% else %}
+                        <span class="badge bg-secondary">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if campus.latitude and campus.longitude %}
+                        <span class="text-success"><i class="bi bi-geo-alt-fill"></i> {{ campus.latitude[:8] }}, {{ campus.longitude[:9] }}</span>
+                        {% else %}
+                        <span class="text-muted">Not geocoded</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

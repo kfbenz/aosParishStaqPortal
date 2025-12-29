@@ -46,7 +46,7 @@ async def reports_home(request: Request):
             "campuses": campuses
         })
     finally:
-        db.close()
+        pass  # mirror session managed by get_mirror_db
 
 
 @router.get("/demographics", response_class=HTMLResponse)
@@ -118,7 +118,7 @@ async def demographics_report(
         else:
             campus_ids_list = [c['id'] for c in user.get('campuses', [])]
             campuses = mirror.session.query(Campus).filter(Campus.campus_id.in_(campus_ids_list)).order_by(Campus.name).all()
-        db.close()
+        pass  # mirror session managed by get_mirror_db
         
         return templates.TemplateResponse("reports/demographics.html", {
             "request": request,
@@ -186,7 +186,7 @@ async def membership_report(
         else:
             campus_ids_list = [c['id'] for c in user.get('campuses', [])]
             campuses = mirror.session.query(Campus).filter(Campus.campus_id.in_(campus_ids_list)).order_by(Campus.name).all()
-        db.close()
+        pass  # mirror session managed by get_mirror_db
         
         return templates.TemplateResponse("reports/membership.html", {
             "request": request,

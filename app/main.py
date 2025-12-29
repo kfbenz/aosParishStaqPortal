@@ -16,7 +16,7 @@ from .routes_mirror import router as mirror_router
 from .routes_duplicates import router as duplicates_router
 from .routes_geocoding import router as geocoding_router
 from .routes_reports import router as reports_router
-
+from .routes_files import router as files_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -52,7 +52,7 @@ app.include_router(mirror_router)
 app.include_router(duplicates_router)
 app.include_router(geocoding_router)
 app.include_router(reports_router)
-
+app.include_router(files_router)
 
 # =============================================================================
 # Error Handlers

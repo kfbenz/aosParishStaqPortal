@@ -1,7 +1,5 @@
 {% extends "base.html" %}
-
 {% block title %}Scan Results - Duplicates{% endblock %}
-
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -40,27 +38,53 @@
     {% if clusters %}
     {% for cluster in clusters %}
     <div class="card mb-3">
-        <div class="card-header">
-            <span class="badge bg-warning text-dark me-2">Cluster {{ loop.index }}</span>
-            {{ cluster.match_type or 'Match' }}
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+                <span class="badge bg-warning text-dark me-2">Cluster {{ loop.index }}</span>
+                <span class="text-muted">{{ cluster.match_type or 'Match' }}</span>
+            </div>
+            <div>
+                {% if cluster.score %}
+                <span class="badge bg-info">Score: {{ cluster.score }}</span>
+                {% endif %}
+                {% if cluster.confidence %}
+                <span class="badge bg-{{ 'success' if cluster.confidence == 'high' else 'secondary' }}">
+                    {{ cluster.confidence }}
+                </span>
+                {% endif %}
+            </div>
         </div>
         <div class="card-body p-0">
             <table class="table table-sm mb-0">
                 <thead class="table-light">
                     <tr>
-                        <th>ID</th>
+                        <th>AOS ID</th>
                         <th>Name</th>
                         <th>Email</th>
+                        <th>Address</th>
                         <th>Campus</th>
+                        <th>Status</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for member in cluster.members %}
                     <tr>
-                        <td>{{ member.individual_id or member.aos_id or '-' }}</td>
-                        <td>{{ member.first_name }} {{ member.last_name }}</td>
+                        <td>
+                            <a href="/mirror/individual/{{ member.aos_id }}">
+                                {{ member.aos_id or '-' }}
+                            </a>
+                        </td>
+                        <td>{{ member.name or '-' }}</td>
                         <td>{{ member.email or '-' }}</td>
+                        <td>{{ member.address or '-' }}</td>
                         <td>{{ member.campus_name or '-' }}</td>
+                        <td>
+                            {% if member.active %}
+                            <span class="badge bg-success">Active</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Inactive</span>
+                            {% endif %}
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>

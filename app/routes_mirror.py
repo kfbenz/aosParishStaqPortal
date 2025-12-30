@@ -134,7 +134,7 @@ async def individual_detail(request: Request, individual_id: int):
         from mirror_database import Individual, Family, get_mirror_db
         
         mirror = get_mirror_db()
-        individual = mirror.session.query(Individual).filter(Individual.individual_id == individual_id).first()
+        individual = mirror.session.query(Individual).filter(Individual.aos_id == individual_id).first()
         
         if not individual:
             return templates.TemplateResponse("error.html", {

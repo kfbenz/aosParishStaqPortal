@@ -5,17 +5,24 @@ from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 import os
+import secrets
+import hashlib
 
 from .auth import get_current_user, require_admin
 from .models import PortalUser, get_session
 import sys
-sys.path.insert(0, '/opt/portal_app/aosParishStaq')
+sys.path.insert(0, '/opt/portal_app/aosParishStaq/src')
 from mirror_database import Campus
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
 templates_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")
 templates = Jinja2Templates(directory=templates_path)
+
+
+def hash_password(password: str) -> str:
+    """Simple SHA256 hash for password"""
+    return hashlib.sha256(password.encode()).hexdigest()
 
 
 @router.get("/users", response_class=HTMLResponse)
@@ -53,6 +60,7 @@ async def new_user_form(request: Request, user: dict = Depends(require_admin)):
 async def create_user(
     request: Request,
     email: str = Form(...),
+    password: str = Form(""),
     name: str = Form(""),
     is_admin: bool = Form(False),
     campus_ids: list = Form(default=[]),
@@ -66,22 +74,38 @@ async def create_user(
         if existing:
             request.session['flash'] = f"User {email} already exists"
             return RedirectResponse(url="/admin/users", status_code=303)
+
+        # Use email prefix as username
+        username = email.lower().strip().split('@')[0]
         
+        # Check if username already exists, append number if needed
+        base_username = username
+        counter = 1
+        while db.query(PortalUser).filter(PortalUser.username == username).first():
+            username = f"{base_username}{counter}"
+            counter += 1
+
+        # Generate random password if not provided
+        if not password:
+            password = secrets.token_urlsafe(12)
+
         new_user = PortalUser(
+            username=username,
             email=email.lower().strip(),
+            hashed_password=hash_password(password),
             name=name,
             is_admin=is_admin
         )
-        
+
         # Add campus assignments
         if campus_ids:
             campuses = db.query(Campus).filter(Campus.id.in_(campus_ids)).all()
             new_user.campuses = campuses
-        
+
         db.add(new_user)
         db.commit()
-        
-        request.session['flash'] = f"User {email} created successfully"
+
+        request.session['flash'] = f"User {email} created. Password: {password}"
         return RedirectResponse(url="/admin/users", status_code=303)
     finally:
         db.close()
@@ -95,7 +119,7 @@ async def edit_user_form(request: Request, user_id: int, user: dict = Depends(re
         edit_user = db.query(PortalUser).filter(PortalUser.id == user_id).first()
         if not edit_user:
             return RedirectResponse(url="/admin/users", status_code=303)
-        
+
         campuses = db.query(Campus).filter(Campus.active == True).order_by(Campus.name).all()
         return templates.TemplateResponse("admin/user_form.html", {
             "request": request,
@@ -112,6 +136,7 @@ async def update_user(
     request: Request,
     user_id: int,
     email: str = Form(...),
+    password: str = Form(""),
     name: str = Form(""),
     is_admin: bool = Form(False),
     is_active: bool = Form(True),
@@ -124,21 +149,25 @@ async def update_user(
         edit_user = db.query(PortalUser).filter(PortalUser.id == user_id).first()
         if not edit_user:
             return RedirectResponse(url="/admin/users", status_code=303)
-        
+
         edit_user.email = email.lower().strip()
         edit_user.name = name
         edit_user.is_admin = is_admin
         edit_user.is_active = is_active
-        
+
+        # Update password if provided
+        if password:
+            edit_user.hashed_password = hash_password(password)
+
         # Update campus assignments
         if campus_ids:
             campuses = db.query(Campus).filter(Campus.id.in_(campus_ids)).all()
             edit_user.campuses = campuses
         else:
             edit_user.campuses = []
-        
+
         db.commit()
-        
+
         request.session['flash'] = f"User {email} updated successfully"
         return RedirectResponse(url="/admin/users", status_code=303)
     finally:
@@ -179,15 +208,15 @@ async def list_campuses(request: Request, user: dict = Depends(require_admin)):
 async def sync_campuses(request: Request, user: dict = Depends(require_admin)):
     """Sync campuses from mirror database"""
     try:
-        from mirror_database import Campus, get_mirror_db
-        
-        mirror = get_mirror_db()
-        mirror_campuses = mirror.session.query(Campus).all()
-        
+        from mirror_database import Campus as MirrorCampus, MirrorDatabase
+
+        mirror = MirrorDatabase()
+        mirror_campuses = mirror.session.query(MirrorCampus).all()
+
         db = get_session()
         added = 0
         updated = 0
-        
+
         for mc in mirror_campuses:
             existing = db.query(Campus).filter(Campus.campus_id == mc.campus_id).first()
             if existing:
@@ -198,10 +227,10 @@ async def sync_campuses(request: Request, user: dict = Depends(require_admin)):
                 new_campus = Campus(campus_id=mc.campus_id, name=mc.name)
                 db.add(new_campus)
                 added += 1
-        
+
         db.commit()
         db.close()
-        
+
         return JSONResponse({
             "success": True,
             "added": added,

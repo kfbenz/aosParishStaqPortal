@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+
+{% block title %}{{ individual.first_name }} {{ individual.last_name }} - ParishStaq Portal{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <a href="/mirror/campus/{{ individual.campus_id }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back to Campus
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-person"></i> {{ individual.first_name }} {{ individual.last_name }}
+                </h5>
+                <span class="badge {{ 'bg-success' if individual.active else 'bg-secondary' }}">
+                    {{ 'Active' if individual.active else 'Inactive' }}
+                </span>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-muted">Personal Information</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td class="text-muted" style="width: 140px;">AOS ID</td>
+                                <td><strong>{{ individual.aos_id }}</strong></td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">First Name</td>
+                                <td>{{ individual.first_name or '-' }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Last Name</td>
+                                <td>{{ individual.last_name or '-' }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Giving Number</td>
+                                <td>{{ individual.giving_number or '-' }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Household Position</td>
+                                <td>{{ individual.household_position or '-' }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-muted">Contact Information</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td class="text-muted" style="width: 140px;">Email</td>
+                                <td>
+                                    {% if individual.email %}
+                                    <a href="mailto:{{ individual.email }}">{{ individual.email }}</a>
+                                    {% else %}
+                                    -
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        </table>
+
+                        <h6 class="text-muted mt-4">Address</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td class="text-muted" style="width: 140px;">Street</td>
+                                <td>{{ individual.address_street or '-' }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">City</td>
+                                <td>{{ individual.address_city or '-' }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">State</td>
+                                <td>{{ individual.address_state or '-' }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">ZIP</td>
+                                <td>{{ individual.address_zip or '-' }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Membership/Status Info -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-card-checklist"></i> Status Information</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <table class="table table-sm">
+                            <tr>
+                                <td class="text-muted" style="width: 140px;">Status</td>
+                                <td>
+                                    {% if individual.deceased_date %}
+                                    <span class="badge bg-dark">Deceased</span>
+                                    {% elif individual.active %}
+                                    <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">Inactive</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Membership Type</td>
+                                <td>{{ individual.membership_type_id or '-' }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Membership Date</td>
+                                <td>{{ individual.membership_date.strftime('%Y-%m-%d') if individual.membership_date else '-' }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Campus</td>
+                                <td>{{ individual.campus_name or individual.campus_id or '-' }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <table class="table table-sm">
+                            <tr>
+                                <td class="text-muted" style="width: 140px;">Family ID</td>
+                                <td>{{ individual.family_id or '-' }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Last Modified</td>
+                                <td>{{ individual.last_modified.strftime('%Y-%m-%d %H:%M') if individual.last_modified else '-' }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Mirror Created</td>
+                                <td>{{ individual.mirror_created_at.strftime('%Y-%m-%d') if individual.mirror_created_at else '-' }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Geocoding Info -->
+        {% if individual.latitude and individual.longitude %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-geo-alt"></i> Location</h6>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tr>
+                        <td class="text-muted" style="width: 140px;">Coordinates</td>
+                        <td>{{ individual.latitude }}, {{ individual.longitude }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Source</td>
+                        <td>{{ individual.geocode_source or '-' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Quality</td>
+                        <td>{{ individual.geocode_quality or '-' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Geocoded At</td>
+                        <td>{{ individual.geocoded_at.strftime('%Y-%m-%d') if individual.geocoded_at else '-' }}</td>
+                    </tr>
+                </table>
+                <a href="https://maps.google.com/?q={{ individual.latitude }},{{ individual.longitude }}" 
+                   target="_blank" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-map"></i> View on Map
+                </a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="col-md-4">
+        <!-- Family Card -->
+        {% if family %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-house"></i> Family</h6>
+            </div>
+            <div class="card-body">
+                <h5>{{ family.name }}</h5>
+                <table class="table table-sm">
+                    <tr>
+                        <td class="text-muted">Family ID</td>
+                        <td>{{ family.family_id }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Head</td>
+                        <td>{{ family.head_first_name }} {{ family.head_last_name }}</td>
+                    </tr>
+                    {% if family.spouse_first_name %}
+                    <tr>
+                        <td class="text-muted">Spouse</td>
+                        <td>{{ family.spouse_first_name }} {{ family.spouse_last_name }}</td>
+                    </tr>
+                    {% endif %}
+                    <tr>
+                        <td class="text-muted">Address</td>
+                        <td>
+                            {{ family.street_address or '' }}<br>
+                            {{ family.city or '' }}{% if family.city and family.state %}, {% endif %}{{ family.state or '' }} {{ family.zip or '' }}
+                        </td>
+                    </tr>
+                    {% if family.latitude and family.longitude %}
+                    <tr>
+                        <td class="text-muted">Location</td>
+                        <td>
+                            <a href="https://maps.google.com/?q={{ family.latitude }},{{ family.longitude }}" target="_blank">
+                                <i class="bi bi-geo-alt"></i> View on Map
+                            </a>
+                        </td>
+                    </tr>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Quick Actions -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-lightning"></i> Quick Actions</h6>
+            </div>
+            <div class="card-body">
+                {% if individual.email %}
+                <a href="mailto:{{ individual.email }}" class="btn btn-outline-primary btn-sm mb-2 w-100">
+                    <i class="bi bi-envelope"></i> Send Email
+                </a>
+                {% endif %}
+                {% if individual.latitude and individual.longitude %}
+                <a href="https://maps.google.com/?q={{ individual.latitude }},{{ individual.longitude }}" 
+                   target="_blank" class="btn btn-outline-primary btn-sm w-100">
+                    <i class="bi bi-map"></i> View Location
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

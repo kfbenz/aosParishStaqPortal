@@ -24,6 +24,13 @@ templates_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templ
 templates = Jinja2Templates(directory=templates_path)
 
 
+def get_scanner():
+    """Get duplicate scanner instance with config"""
+    from parishstaq_duplicate_manager import LocalDuplicateScanner, Config
+    config = Config()
+    return LocalDuplicateScanner(config)
+
+
 @router.get("/", response_class=HTMLResponse)
 @require_auth
 async def duplicates_home(request: Request):
@@ -31,20 +38,23 @@ async def duplicates_home(request: Request):
     user = get_current_user(request)
     if not user:
         return RedirectResponse(url="/auth/login", status_code=303)
-    
+
     portal_db = SessionLocal()
     try:
         # Get recent scans
         scans = portal_db.query(ScanJob).order_by(ScanJob.created_at.desc()).limit(10).all()
-        
+
         # Get campuses for dropdown from mirror database
         mirror_db = MirrorDatabase()
-        if user['is_admin']:
+        if user.get('is_admin'):
             campuses = mirror_db.session.query(Campus).filter(Campus.active == True).order_by(Campus.name).all()
         else:
-            campus_ids = [c['id'] for c in user.get('campuses', [])]
-            campuses = mirror_db.session.query(Campus).filter(Campus.id.in_(campus_ids)).order_by(Campus.name).all()
-        
+            campus_ids = [c.get('id') for c in user.get('campuses', [])]
+            if campus_ids:
+                campuses = mirror_db.session.query(Campus).filter(Campus.id.in_(campus_ids)).order_by(Campus.name).all()
+            else:
+                campuses = []
+
         return templates.TemplateResponse("duplicates/index.html", {
             "request": request,
             "user": user,
@@ -56,60 +66,73 @@ async def duplicates_home(request: Request):
 
 
 @router.post("/scan")
-@require_auth
 async def start_scan(
     request: Request,
     campus_id: str = Form(""),
     scan_type: str = Form("quick")
 ):
     """Start a new duplicate scan"""
+    # Check auth - return JSON error instead of redirect for API calls
     user = get_current_user(request)
     if not user:
-        return JSONResponse({"error": "Not authenticated"}, status_code=401)
-    
-    # Convert campus_id to int
-    if not campus_id or campus_id == "":
-        return JSONResponse({"error": "Please select a campus"}, status_code=400)
-    try:
-        campus_id_int = int(campus_id)
-    except ValueError:
-        return JSONResponse({"error": "Invalid campus ID"}, status_code=400)
-    
+        return JSONResponse({"error": "Not authenticated", "redirect": "/auth/login"}, status_code=401)
+
+    # Convert campus_id to int (optional - empty means all campuses)
+    campus_id_int = None
+    if campus_id and campus_id != "":
+        try:
+            campus_id_int = int(campus_id)
+        except ValueError:
+            return JSONResponse({"error": "Invalid campus ID"}, status_code=400)
+
     portal_db = SessionLocal()
     mirror_db = MirrorDatabase()
     try:
-        # Get campus info from mirror database
-        campus = mirror_db.session.query(Campus).filter(Campus.campus_id == campus_id_int).first()
-        if not campus:
-            return JSONResponse({"error": "Campus not found"}, status_code=404)
-        
+        # Get campus info if specified
+        campus_name = "All Campuses"
+        if campus_id_int:
+            campus = mirror_db.session.query(Campus).filter(Campus.campus_id == campus_id_int).first()
+            if campus:
+                campus_name = campus.name
+
         # Create scan job
         scan = ScanJob(
             campus_id=campus_id_int,
-            campus_name=campus.name,
+            campus_name=campus_name,
             scan_type=scan_type,
             status='running',
             started_at=datetime.utcnow(),
-            created_by=user['id']
+            created_by=user.get('id')
         )
         portal_db.add(scan)
         portal_db.commit()
         scan_id = scan.id
-        
-        # Run scan (simplified - in production this would be async)
+
+        # Run scan
         try:
-            from parishstaq_duplicate_manager import DuplicateManager
-            from mirror_database import get_mirror_db
-            
-            mirror = get_mirror_db()
-            manager = DuplicateManager(mirror.session)
-            
-            # Run detection
-            if scan_type == 'quick':
-                clusters = manager.find_exact_duplicates(campus_id=campus_id)
+            scanner = get_scanner()
+
+            # Run detection based on scan type
+            if scan_type == 'address':
+                clusters = scanner.find_individual_duplicates_by_address(active_only=True)
+            elif scan_type == 'phone':
+                clusters = scanner.find_individual_duplicates_by_phone(active_only=True)
+            elif scan_type == 'family':
+                clusters = scanner.find_family_duplicates()
             else:
-                clusters = manager.find_fuzzy_duplicates(campus_id=campus_id)
-            
+                # Default: individual duplicates (name/email)
+                clusters = scanner.find_individual_duplicates(active_only=True)
+
+            # Filter by campus if specified
+            if campus_id_int:
+                filtered_clusters = []
+                for c in clusters:
+                    members = c.get('members', c.get('individuals', []))
+                    # Keep cluster if any member is from the selected campus
+                    if any(m.get('campus_id') == campus_id_int for m in members):
+                        filtered_clusters.append(c)
+                clusters = filtered_clusters
+
             # Update scan job
             scan.status = 'completed'
             scan.completed_at = datetime.utcnow()
@@ -117,31 +140,33 @@ async def start_scan(
             scan.results_summary = json.dumps({
                 'clusters': [
                     {
-                        'match_type': c.get('match_type', 'unknown'),
-                        'members': c.get('members', [])
+                        'match_type': ', '.join(c.get('match_fields', [])) or c.get('type', 'unknown'),
+                        'score': c.get('max_score', c.get('score', 0)),
+                        'confidence': c.get('confidence', ''),
+                        'members': c.get('members', [])[:20]
                     }
-                    for c in clusters[:100]  # Limit stored results
+                    for c in clusters[:100]
                 ]
             })
             portal_db.commit()
-            
+
             return JSONResponse({
                 "success": True,
                 "scan_id": scan_id,
                 "duplicates_found": len(clusters)
             })
-            
+
         except Exception as e:
             scan.status = 'failed'
             scan.error_message = str(e)[:500]
             scan.completed_at = datetime.utcnow()
             portal_db.commit()
-            
+
             return JSONResponse({
                 "success": False,
                 "error": str(e)
             }, status_code=500)
-            
+
     finally:
         portal_db.close()
 
@@ -153,7 +178,7 @@ async def view_scan(request: Request, scan_id: int):
     user = get_current_user(request)
     if not user:
         return RedirectResponse(url="/auth/login", status_code=303)
-    
+
     portal_db = SessionLocal()
     try:
         scan = portal_db.query(ScanJob).filter(ScanJob.id == scan_id).first()
@@ -162,7 +187,7 @@ async def view_scan(request: Request, scan_id: int):
                 "request": request,
                 "error": "Scan not found"
             }, status_code=404)
-        
+
         clusters = []
         if scan.results_summary:
             try:
@@ -170,7 +195,7 @@ async def view_scan(request: Request, scan_id: int):
                 clusters = results.get('clusters', [])
             except:
                 pass
-        
+
         return templates.TemplateResponse("duplicates/results.html", {
             "request": request,
             "user": user,
@@ -188,20 +213,20 @@ async def export_results(request: Request, scan_id: int):
     user = get_current_user(request)
     if not user:
         return JSONResponse({"error": "Not authenticated"}, status_code=401)
-    
+
     portal_db = SessionLocal()
     try:
         scan = portal_db.query(ScanJob).filter(ScanJob.id == scan_id).first()
         if not scan or not scan.results_summary:
             return JSONResponse({"error": "No results"}, status_code=404)
-        
+
         results = json.loads(scan.results_summary)
         clusters = results.get('clusters', [])
-        
+
         output = io.StringIO()
         writer = csv.writer(output)
-        writer.writerow(['Cluster', 'Individual ID', 'Name', 'Email', 'Campus', 'Match Type'])
-        
+        writer.writerow(['Cluster', 'Individual ID', 'Name', 'Email', 'Campus', 'Match Type', 'Score'])
+
         for i, cluster in enumerate(clusters, 1):
             members = cluster.get('members', cluster.get('individuals', []))
             for member in members:
@@ -211,9 +236,10 @@ async def export_results(request: Request, scan_id: int):
                     f"{member.get('first_name', '')} {member.get('last_name', '')}",
                     member.get('email', ''),
                     member.get('campus_name', ''),
-                    cluster.get('match_type', '')
+                    cluster.get('match_type', ''),
+                    cluster.get('score', '')
                 ])
-        
+
         output.seek(0)
         return StreamingResponse(
             iter([output.getvalue()]),

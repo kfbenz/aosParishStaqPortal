@@ -8,6 +8,9 @@
             <a href="/duplicates/scan/{{ scan.id }}/export" class="btn btn-success">
                 <i class="bi bi-download"></i> Export CSV
             </a>
+            <button type="button" class="btn btn-outline-danger" onclick="deleteScan({{ scan.id }})">
+                <i class="bi bi-trash"></i> Delete
+            </button>
             <a href="/duplicates" class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-left"></i> Back
             </a>
@@ -52,6 +55,9 @@
                     {{ cluster.confidence }}
                 </span>
                 {% endif %}
+                <a href="/duplicates/scan/{{ scan.id }}/cluster/{{ loop.index0 }}" class="btn btn-sm btn-outline-primary ms-2">
+                    <i class="bi bi-eye"></i> Detail
+                </a>
             </div>
         </div>
         <div class="card-body p-0">
@@ -68,13 +74,15 @@
                 </thead>
                 <tbody>
                     {% for member in cluster.members %}
+                    {% set ind_id = member.aos_id or member.individual_id %}
                     <tr>
                         <td>
-                            <a href="/mirror/individual/{{ member.aos_id }}">
-                                {{ member.aos_id or '-' }}
+                            <a href="https://app.ccbchurch.com/#/people/detail/{{ ind_id }}" target="_blank">
+                                {{ ind_id or '-' }}
+                                <i class="bi bi-box-arrow-up-right small"></i>
                             </a>
                         </td>
-                        <td>{{ member.name or '-' }}</td>
+                        <td>{{ member.name or (member.first_name ~ ' ' ~ member.last_name) or '-' }}</td>
                         <td>{{ member.email or '-' }}</td>
                         <td>{{ member.address or '-' }}</td>
                         <td>{{ member.campus_name or '-' }}</td>
@@ -86,6 +94,38 @@
                             {% endif %}
                         </td>
                     </tr>
+                    <!-- Activity Row -->
+                    {% set ind_id_str = ind_id|string %}
+                    {% if activity_data and ind_id_str in activity_data %}
+                    <tr class="table-light">
+                        <td colspan="6" class="py-1 ps-4 border-0">
+                            <small class="text-muted">
+                                📊 
+                                {% set activity = activity_data[ind_id_str] %}
+                                {% set parts = [] %}
+                                {% if 'Last Gift' in activity %}
+                                    {% set _ = parts.append('Gift: ' ~ activity['Last Gift']) %}
+                                {% endif %}
+                                {% if 'Last Scheduled Gift' in activity %}
+                                    {% set _ = parts.append('Scheduled: ' ~ activity['Last Scheduled Gift']) %}
+                                {% endif %}
+                                {% if 'Last Pledge' in activity %}
+                                    {% set _ = parts.append('Pledge: ' ~ activity['Last Pledge']) %}
+                                {% endif %}
+                                {% if 'Last Attended' in activity %}
+                                    {% set _ = parts.append('Attended: ' ~ activity['Last Attended']) %}
+                                {% endif %}
+                                {% if 'Last Served' in activity %}
+                                    {% set _ = parts.append('Served: ' ~ activity['Last Served']) %}
+                                {% endif %}
+                                {% if 'Last Profile Update' in activity %}
+                                    {% set _ = parts.append('Profile: ' ~ activity['Last Profile Update']) %}
+                                {% endif %}
+                                {{ parts|join(' | ') if parts else 'No activity' }}
+                            </small>
+                        </td>
+                    </tr>
+                    {% endif %}
                     {% endfor %}
                 </tbody>
             </table>
@@ -98,4 +138,27 @@
     </div>
     {% endif %}
 </div>
+
+<script>
+async function deleteScan(scanId) {
+    if (!confirm('Are you sure you want to delete this scan? This cannot be undone.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/duplicates/scan/' + scanId, {
+            method: 'DELETE'
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            window.location.href = '/duplicates';
+        } else {
+            alert('Error: ' + (data.error || 'Failed to delete scan'));
+        }
+    } catch (err) {
+        alert('Error: ' + err);
+    }
+}
+</script>
 {% endblock %}

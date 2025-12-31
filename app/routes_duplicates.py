@@ -260,6 +260,7 @@ async def view_scan(request: Request, scan_id: int):
         return RedirectResponse(url="/auth/login", status_code=303)
 
     portal_db = SessionLocal()
+    mirror_db = MirrorDatabase()
     try:
         scan = portal_db.query(ScanJob).filter(ScanJob.id == scan_id).first()
         if not scan:
@@ -276,11 +277,24 @@ async def view_scan(request: Request, scan_id: int):
             except:
                 pass
 
+        # Collect all individual IDs from all clusters to fetch activity data
+        all_individual_ids = []
+        for cluster in clusters:
+            members = cluster.get('members', [])
+            for member in members:
+                ind_id = member.get('aos_id') or member.get('individual_id')
+                if ind_id:
+                    all_individual_ids.append(ind_id)
+
+        # Fetch activity data for all individuals
+        activity_data = get_activity_for_individuals(mirror_db, all_individual_ids)
+
         return templates.TemplateResponse("duplicates/results.html", {
             "request": request,
             "user": user,
             "scan": scan,
-            "clusters": clusters
+            "clusters": clusters,
+            "activity_data": activity_data
         })
     finally:
         portal_db.close()
@@ -340,6 +354,35 @@ async def view_cluster(request: Request, scan_id: int, cluster_index: int):
             "activity_data": activity_data,
             "format_activity_line": format_activity_line
         })
+    finally:
+        portal_db.close()
+
+
+@router.delete("/scan/{scan_id}")
+@require_auth
+async def delete_scan(request: Request, scan_id: int):
+    """Delete a scan job"""
+    user = get_current_user(request)
+    if not user:
+        return JSONResponse({"error": "Not authenticated"}, status_code=401)
+
+    portal_db = SessionLocal()
+    try:
+        scan = portal_db.query(ScanJob).filter(ScanJob.id == scan_id).first()
+        if not scan:
+            return JSONResponse({"error": "Scan not found"}, status_code=404)
+
+        # Optional: Check if user owns the scan or is admin
+        # if scan.created_by != user.get('id') and not user.get('is_admin'):
+        #     return JSONResponse({"error": "Not authorized"}, status_code=403)
+
+        portal_db.delete(scan)
+        portal_db.commit()
+
+        return JSONResponse({"success": True, "message": "Scan deleted"})
+    except Exception as e:
+        portal_db.rollback()
+        return JSONResponse({"error": str(e)}, status_code=500)
     finally:
         portal_db.close()
 

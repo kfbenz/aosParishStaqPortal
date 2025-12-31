@@ -10,6 +10,7 @@ import json
 import csv
 import io
 from datetime import datetime
+from sqlalchemy import text
 
 from .auth import get_current_user, require_auth, require_admin
 from .models import ScanJob, get_session, SessionLocal
@@ -29,6 +30,85 @@ def get_scanner():
     from parishstaq_duplicate_manager import LocalDuplicateScanner, Config
     config = Config()
     return LocalDuplicateScanner(config)
+
+
+def get_activity_for_individuals(mirror_db, individual_ids: list) -> dict:
+    """
+    Fetch activity data for a list of individual IDs.
+    Returns dict keyed by individual_id with activity summary.
+    """
+    if not individual_ids:
+        return {}
+    
+    activity_data = {}
+    
+    try:
+        # Convert IDs to strings for the query
+        id_list = [str(id) for id in individual_ids if id]
+        if not id_list:
+            return {}
+        
+        placeholders = ', '.join([f':id{i}' for i in range(len(id_list))])
+        params = {f'id{i}': id_list[i] for i in range(len(id_list))}
+        
+        query = text(f"""
+            SELECT individual_id, activity_type, activity_date, activity_count
+            FROM individual_activity
+            WHERE individual_id IN ({placeholders})
+            ORDER BY individual_id, activity_type
+        """)
+        
+        result = mirror_db.session.execute(query, params)
+        
+        for row in result:
+            ind_id = str(row.individual_id)
+            if ind_id not in activity_data:
+                activity_data[ind_id] = {}
+            
+            # Store the activity with its date
+            activity_type = row.activity_type
+            activity_date = row.activity_date
+            
+            if activity_date:
+                # Format the date nicely
+                if hasattr(activity_date, 'strftime'):
+                    date_str = activity_date.strftime('%Y-%m-%d')
+                else:
+                    date_str = str(activity_date)[:10]
+                activity_data[ind_id][activity_type] = date_str
+            
+    except Exception as e:
+        print(f"Error fetching activity data: {e}")
+    
+    return activity_data
+
+
+def format_activity_line(activity: dict) -> str:
+    """Format activity dict into a display string"""
+    if not activity:
+        return ""
+    
+    # Priority order for display
+    display_order = [
+        'Last Gift',
+        'Last Scheduled Gift', 
+        'Last Pledge',
+        'Last Attended',
+        'Last Served',
+        'Last Profile Update'
+    ]
+    
+    parts = []
+    for activity_type in display_order:
+        if activity_type in activity:
+            parts.append(f"{activity_type}: {activity[activity_type]}")
+    
+    # Add any other activity types not in the priority list
+    for activity_type, date in activity.items():
+        if activity_type not in display_order:
+            parts.append(f"{activity_type}: {date}")
+    
+    return " | ".join(parts)
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -201,6 +281,64 @@ async def view_scan(request: Request, scan_id: int):
             "user": user,
             "scan": scan,
             "clusters": clusters
+        })
+    finally:
+        portal_db.close()
+
+
+@router.get("/scan/{scan_id}/cluster/{cluster_index}", response_class=HTMLResponse)
+@require_auth
+async def view_cluster(request: Request, scan_id: int, cluster_index: int):
+    """View details of a specific duplicate cluster with activity data"""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/auth/login", status_code=303)
+
+    portal_db = SessionLocal()
+    mirror_db = MirrorDatabase()
+    try:
+        scan = portal_db.query(ScanJob).filter(ScanJob.id == scan_id).first()
+        if not scan:
+            return templates.TemplateResponse("error.html", {
+                "request": request,
+                "error": "Scan not found"
+            }, status_code=404)
+
+        clusters = []
+        if scan.results_summary:
+            try:
+                results = json.loads(scan.results_summary)
+                clusters = results.get('clusters', [])
+            except:
+                pass
+
+        if cluster_index < 0 or cluster_index >= len(clusters):
+            return templates.TemplateResponse("error.html", {
+                "request": request,
+                "error": "Cluster not found"
+            }, status_code=404)
+
+        cluster = clusters[cluster_index]
+        members = cluster.get('members', [])
+
+        # Fetch activity data for all members in this cluster
+        individual_ids = []
+        for m in members:
+            ind_id = m.get('aos_id') or m.get('individual_id')
+            if ind_id:
+                individual_ids.append(ind_id)
+
+        activity_data = get_activity_for_individuals(mirror_db, individual_ids)
+
+        return templates.TemplateResponse("duplicates/cluster_detail.html", {
+            "request": request,
+            "user": user,
+            "scan": scan,
+            "scan_id": scan_id,
+            "cluster_index": cluster_index,
+            "cluster": cluster,
+            "activity_data": activity_data,
+            "format_activity_line": format_activity_line
         })
     finally:
         portal_db.close()

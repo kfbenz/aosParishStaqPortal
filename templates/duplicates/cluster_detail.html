@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+
+{% block title %}Cluster Detail - ParishStaq Portal{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <nav class="col-md-2 sidebar py-3">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link" href="/dashboard">
+                        <i class="bi bi-speedometer2"></i> Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/campuses">
+                        <i class="bi bi-building"></i> Campuses
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/search">
+                        <i class="bi bi-search"></i> Search
+                    </a>
+                </li>
+                <li class="nav-item mt-3">
+                    <span class="nav-link text-muted small">TOOLS</span>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/mirror">
+                        <i class="bi bi-arrow-repeat"></i> Mirror
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="/duplicates">
+                        <i class="bi bi-people-fill"></i> Duplicates
+                    </a>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Main content -->
+        <main class="col-md-10 ms-sm-auto px-4 py-3">
+            <nav aria-label="breadcrumb" class="mb-3">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/duplicates">Duplicates</a></li>
+                    <li class="breadcrumb-item"><a href="/duplicates/scan/{{ scan_id }}">Scan #{{ scan_id }}</a></li>
+                    <li class="breadcrumb-item active">Cluster {{ cluster_index + 1 }}</li>
+                </ol>
+            </nav>
+
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h2">
+                    <i class="bi bi-diagram-3"></i> 
+                    Duplicate Cluster #{{ cluster_index + 1 }}
+                </h1>
+                <a href="/duplicates/scan/{{ scan_id }}" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-left"></i> Back to Results
+                </a>
+            </div>
+
+            <!-- Cluster Summary -->
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <div class="h3">{{ cluster.members|length }}</div>
+                            <div class="text-muted small">Records</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <div class="h3">{{ cluster.score or '-' }}</div>
+                            <div class="text-muted small">Match Score</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            {% if cluster.confidence == 'high' %}
+                            <span class="badge bg-danger fs-5">High</span>
+                            {% elif cluster.confidence == 'medium' %}
+                            <span class="badge bg-warning text-dark fs-5">Medium</span>
+                            {% else %}
+                            <span class="badge bg-secondary fs-5">{{ cluster.confidence or 'Unknown' }}</span>
+                            {% endif %}
+                            <div class="text-muted small mt-1">Confidence</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Match Type -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <strong>Match Type:</strong> {{ cluster.match_type or 'Unknown' }}
+                </div>
+            </div>
+
+            <!-- Members -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-people"></i> Cluster Members</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>ID</th>
+                                    <th>Email</th>
+                                    <th>Phone</th>
+                                    <th>Campus</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for member in cluster.members %}
+                                {% set ind_id = member.aos_id or member.individual_id %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ member.first_name }} {{ member.last_name }}</strong>
+                                    </td>
+                                    <td>
+                                        <a href="https://app.ccbchurch.com/#/people/detail/{{ ind_id }}" target="_blank" class="text-decoration-none">
+                                            {{ ind_id }}
+                                            <i class="bi bi-box-arrow-up-right small"></i>
+                                        </a>
+                                    </td>
+                                    <td>{{ member.email or '-' }}</td>
+                                    <td>{{ member.phone or '-' }}</td>
+                                    <td>{{ member.campus_name or '-' }}</td>
+                                    <td>
+                                        {% if member.active %}
+                                        <span class="badge bg-success">Active</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">Inactive</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <!-- Activity Row -->
+                                {% set ind_id_str = ind_id|string %}
+                                {% if activity_data and ind_id_str in activity_data %}
+                                <tr class="table-light">
+                                    <td colspan="6" class="py-1 ps-4">
+                                        <small class="text-muted">
+                                            📊 
+                                            {% set activity = activity_data[ind_id_str] %}
+                                            {% set parts = [] %}
+                                            {% if 'Last Gift' in activity %}
+                                                {% set _ = parts.append('Last Gift: ' ~ activity['Last Gift']) %}
+                                            {% endif %}
+                                            {% if 'Last Scheduled Gift' in activity %}
+                                                {% set _ = parts.append('Scheduled: ' ~ activity['Last Scheduled Gift']) %}
+                                            {% endif %}
+                                            {% if 'Last Pledge' in activity %}
+                                                {% set _ = parts.append('Pledge: ' ~ activity['Last Pledge']) %}
+                                            {% endif %}
+                                            {% if 'Last Attended' in activity %}
+                                                {% set _ = parts.append('Attended: ' ~ activity['Last Attended']) %}
+                                            {% endif %}
+                                            {% if 'Last Served' in activity %}
+                                                {% set _ = parts.append('Served: ' ~ activity['Last Served']) %}
+                                            {% endif %}
+                                            {% if 'Last Profile Update' in activity %}
+                                                {% set _ = parts.append('Profile: ' ~ activity['Last Profile Update']) %}
+                                            {% endif %}
+                                            {{ parts|join(' | ') }}
+                                        </small>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr class="table-light">
+                                    <td colspan="6" class="py-1 ps-4">
+                                        <small class="text-muted">📊 No activity data available</small>
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="d-flex justify-content-between mt-4">
+                {% if cluster_index > 0 %}
+                <a href="/duplicates/scan/{{ scan_id }}/cluster/{{ cluster_index - 1 }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-chevron-left"></i> Previous Cluster
+                </a>
+                {% else %}
+                <span></span>
+                {% endif %}
+                
+                <a href="/duplicates/scan/{{ scan_id }}/cluster/{{ cluster_index + 1 }}" class="btn btn-outline-secondary">
+                    Next Cluster <i class="bi bi-chevron-right"></i>
+                </a>
+            </div>
+        </main>
+    </div>
+</div>
+{% endblock %}

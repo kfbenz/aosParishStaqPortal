@@ -1,163 +1,113 @@
 {% extends "base.html" %}
-{% block title %}Scan Results - Duplicates{% endblock %}
+
+{% block title %}Scan Results - Duplicate Detection{% endblock %}
+
 {% block content %}
-<div class="container-fluid">
+<div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1><i class="bi bi-people text-primary"></i> Scan Results</h1>
         <div>
-            <a href="/duplicates/scan/{{ scan.id }}/export" class="btn btn-success">
+            <h2><i class="bi bi-search"></i> Scan Results</h2>
+            <p class="text-muted mb-0">
+                {{ scan.campus_name }} | {{ scan.scan_type|title }} Scan | 
+                {{ scan.started_at.strftime('%Y-%m-%d %H:%M') if scan.started_at else 'N/A' }}
+            </p>
+        </div>
+        <div>
+            <a href="/duplicates/scan/{{ scan.id }}/export" class="btn btn-outline-secondary me-2">
                 <i class="bi bi-download"></i> Export CSV
             </a>
-            <button type="button" class="btn btn-outline-danger" onclick="deleteScan({{ scan.id }})">
-                <i class="bi bi-trash"></i> Delete
-            </button>
-            <a href="/duplicates" class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left"></i> Back
+            <a href="/duplicates/" class="btn btn-outline-primary">
+                <i class="bi bi-arrow-left"></i> Back to Scans
             </a>
         </div>
     </div>
 
-    <!-- Scan Info -->
-    <div class="card mb-4">
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-3">
-                    <strong>Campus:</strong> {{ scan.campus_name }}
-                </div>
-                <div class="col-md-3">
-                    <strong>Type:</strong> {{ scan.scan_type }}
-                </div>
-                <div class="col-md-3">
-                    <strong>Duplicates Found:</strong> {{ scan.duplicates_found or 0 }}
-                </div>
-                <div class="col-md-3">
-                    <strong>Date:</strong> {{ scan.created_at.strftime('%Y-%m-%d %H:%M') if scan.created_at else '-' }}
-                </div>
-            </div>
+    {% if scan.status == 'completed' %}
+        <div class="alert alert-success">
+            <i class="bi bi-check-circle"></i> 
+            Found <strong>{{ scan.duplicates_found }}</strong> potential duplicate clusters
         </div>
-    </div>
+    {% elif scan.status == 'failed' %}
+        <div class="alert alert-danger">
+            <i class="bi bi-x-circle"></i> 
+            Scan failed: {{ scan.error_message or 'Unknown error' }}
+        </div>
+    {% elif scan.status == 'running' %}
+        <div class="alert alert-info">
+            <i class="bi bi-hourglass-split"></i> 
+            Scan is still running...
+        </div>
+    {% endif %}
 
-    <!-- Results -->
     {% if clusters %}
-    {% for cluster in clusters %}
-    <div class="card mb-3">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <div>
-                <span class="badge bg-warning text-dark me-2">Cluster {{ loop.index }}</span>
-                <span class="text-muted">{{ cluster.match_type or 'Match' }}</span>
-            </div>
-            <div>
-                {% if cluster.score %}
-                <span class="badge bg-info">Score: {{ cluster.score }}</span>
-                {% endif %}
-                {% if cluster.confidence %}
-                <span class="badge bg-{{ 'success' if cluster.confidence == 'high' else 'secondary' }}">
-                    {{ cluster.confidence }}
+        {% for cluster in clusters %}
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>
+                    <strong>Cluster {{ loop.index }}</strong>
+                    <span class="badge bg-secondary ms-2">{{ cluster.match_type or 'Unknown' }}</span>
+                    {% if cluster.score %}
+                        <span class="badge bg-info ms-1">Score: {{ cluster.score }}</span>
+                    {% endif %}
+                    {% if cluster.confidence %}
+                        <span class="badge bg-warning ms-1">{{ cluster.confidence }}</span>
+                    {% endif %}
                 </span>
-                {% endif %}
+                <span class="text-muted">{{ cluster.members|length if cluster.members else cluster.individuals|length if cluster.individuals else 0 }} members</span>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Campus</th>
+                            <th>Last Modified</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% set members = cluster.members if cluster.members else cluster.individuals %}
+                        {% for member in members %}
+                            {% set ind_id = member.individual_id or member.aos_id %}
+                            <tr>
+                                <td>
+                                    <a href="/mirror/individual/{{ ind_id }}" target="_blank">
+                                        {{ ind_id }}
+                                    </a>
+                                </td>
+                                <td>{{ member.first_name }} {{ member.last_name }}</td>
+                                <td>{{ member.email or '-' }}</td>
+                                <td>{{ member.campus_name or '-' }}</td>
+                                <td>
+                                    {% if last_modified.get(ind_id|string) %}
+                                        <span class="text-muted">
+                                            <i class="bi bi-clock"></i> {{ last_modified.get(ind_id|string) }}
+                                        </span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="https://archseattle.ccbchurch.com/goto/profile/{{ ind_id }}" 
+                                       target="_blank" 
+                                       class="btn btn-sm btn-outline-primary"
+                                       title="View in ParishStaq">
+                                        <i class="bi bi-box-arrow-up-right"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
-        <div class="card-body p-0">
-            <table class="table table-sm mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>AOS ID</th>
-                        <th>Name</th>
-                        <th>Email</th>
-                        <th>Address</th>
-                        <th>Campus</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for member in cluster.members %}
-                    {% set ind_id = member.aos_id or member.individual_id %}
-                    {% set ind_id_str = ind_id|string %}
-                    <tr>
-                        <td>
-                            <a href="/mirror/individual/{{ ind_id }}" target="_blank">
-                                {{ ind_id or '-' }}
-                                <i class="bi bi-box-arrow-up-right small"></i>
-                            </a>
-                        </td>
-                        <td>{{ member.name or ((member.first_name or '') ~ ' ' ~ (member.last_name or ''))|trim or '-' }}</td>
-                        <td>{{ member.email or '-' }}</td>
-                        <td>{{ member.address or '-' }}</td>
-                        <td>{{ member.campus_name or '-' }}</td>
-                        <td>
-                            {% if member.active %}
-                            <span class="badge bg-success">Active</span>
-                            {% else %}
-                            <span class="badge bg-secondary">Inactive</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    <!-- Activity Row - Always displayed -->
-                    <tr class="table-light">
-                        <td colspan="6" class="py-1 ps-4 border-top-0" style="border-top: none !important;">
-                            <small class="text-muted">
-                                📊 
-                                {% if activity_data and ind_id_str in activity_data %}
-                                    {% set activity = activity_data[ind_id_str] %}
-                                    {% set parts = [] %}
-                                    {% if 'Last Gift' in activity %}
-                                        {% set _ = parts.append('Gift: ' ~ activity['Last Gift']) %}
-                                    {% endif %}
-                                    {% if 'Last Scheduled Gift' in activity %}
-                                        {% set _ = parts.append('Scheduled: ' ~ activity['Last Scheduled Gift']) %}
-                                    {% endif %}
-                                    {% if 'Last Pledge' in activity %}
-                                        {% set _ = parts.append('Pledge: ' ~ activity['Last Pledge']) %}
-                                    {% endif %}
-                                    {% if 'Last Attended' in activity %}
-                                        {% set _ = parts.append('Attended: ' ~ activity['Last Attended']) %}
-                                    {% endif %}
-                                    {% if 'Last Served' in activity %}
-                                        {% set _ = parts.append('Served: ' ~ activity['Last Served']) %}
-                                    {% endif %}
-                                    {% if 'Last Profile Update' in activity %}
-                                        {% set _ = parts.append('Profile: ' ~ activity['Last Profile Update']) %}
-                                    {% endif %}
-                                    {{ parts|join(' | ') if parts else 'No activity recorded' }}
-                                {% else %}
-                                    No activity data
-                                {% endif %}
-                            </small>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-    {% endfor %}
+        {% endfor %}
     {% else %}
-    <div class="alert alert-info">
-        <i class="bi bi-info-circle"></i> No duplicate clusters found.
-    </div>
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> No duplicate clusters found in this scan.
+        </div>
     {% endif %}
 </div>
-
-<script>
-async function deleteScan(scanId) {
-    if (!confirm('Are you sure you want to delete this scan? This cannot be undone.')) {
-        return;
-    }
-    
-    try {
-        const response = await fetch('/duplicates/scan/' + scanId, {
-            method: 'DELETE'
-        });
-        const data = await response.json();
-        
-        if (data.success) {
-            window.location.href = '/duplicates';
-        } else {
-            alert('Error: ' + (data.error || 'Failed to delete scan'));
-        }
-    } catch (err) {
-        alert('Error: ' + err);
-    }
-}
-</script>
 {% endblock %}

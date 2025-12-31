@@ -1,7 +1,7 @@
 """
 Duplicate Detection Routes
 """
-from fastapi import APIRouter, Request, Form, Query, Depends, BackgroundTasks
+from fastapi import APIRouter, Request, Form, Query, Depends
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 import os
@@ -10,14 +10,13 @@ import json
 import csv
 import io
 from datetime import datetime
-from sqlalchemy import text
 
 from .auth import get_current_user, require_auth, require_admin
 from .models import ScanJob, get_session, SessionLocal
 
 # Add path for mirror database
 sys.path.insert(0, '/opt/portal_app/aosParishStaq/src')
-from mirror_database import Campus, MirrorDatabase
+from mirror_database import Campus, MirrorDatabase, Individual
 
 router = APIRouter(prefix="/duplicates", tags=["Duplicates"])
 
@@ -32,83 +31,39 @@ def get_scanner():
     return LocalDuplicateScanner(config)
 
 
-def get_activity_for_individuals(mirror_db, individual_ids: list) -> dict:
+def get_last_modified_for_individuals(mirror_db, individual_ids: list) -> dict:
     """
-    Fetch activity data for a list of individual IDs.
-    Returns dict keyed by individual_id with activity summary.
+    Get last_modified dates for a list of individual IDs.
+    Returns dict keyed by individual_id with formatted date string.
     """
     if not individual_ids:
         return {}
     
-    activity_data = {}
+    modified_data = {}
     
     try:
-        # Convert IDs to strings for the query
+        # Convert IDs to strings for consistency
         id_list = [str(id) for id in individual_ids if id]
         if not id_list:
             return {}
         
-        placeholders = ', '.join([f':id{i}' for i in range(len(id_list))])
-        params = {f'id{i}': id_list[i] for i in range(len(id_list))}
+        # Query individuals for their last_modified dates
+        individuals = mirror_db.session.query(Individual).filter(
+            Individual.aos_id.in_(id_list)
+        ).all()
         
-        query = text(f"""
-            SELECT individual_id, activity_type, activity_date, activity_count
-            FROM individual_activity
-            WHERE individual_id IN ({placeholders})
-            ORDER BY individual_id, activity_type
-        """)
-        
-        result = mirror_db.session.execute(query, params)
-        
-        for row in result:
-            ind_id = str(row.individual_id)
-            if ind_id not in activity_data:
-                activity_data[ind_id] = {}
-            
-            # Store the activity with its date
-            activity_type = row.activity_type
-            activity_date = row.activity_date
-            
-            if activity_date:
-                # Format the date nicely
-                if hasattr(activity_date, 'strftime'):
-                    date_str = activity_date.strftime('%Y-%m-%d')
+        for ind in individuals:
+            if ind.last_modified:
+                if hasattr(ind.last_modified, 'strftime'):
+                    date_str = ind.last_modified.strftime('%Y-%m-%d')
                 else:
-                    date_str = str(activity_date)[:10]
-                activity_data[ind_id][activity_type] = date_str
+                    date_str = str(ind.last_modified)[:10]
+                modified_data[str(ind.aos_id)] = date_str
             
     except Exception as e:
-        print(f"Error fetching activity data: {e}")
+        print(f"Error fetching last_modified data: {e}")
     
-    return activity_data
-
-
-def format_activity_line(activity: dict) -> str:
-    """Format activity dict into a display string"""
-    if not activity:
-        return ""
-    
-    # Priority order for display
-    display_order = [
-        'Last Gift',
-        'Last Scheduled Gift', 
-        'Last Pledge',
-        'Last Attended',
-        'Last Served',
-        'Last Profile Update'
-    ]
-    
-    parts = []
-    for activity_type in display_order:
-        if activity_type in activity:
-            parts.append(f"{activity_type}: {activity[activity_type]}")
-    
-    # Add any other activity types not in the priority list
-    for activity_type, date in activity.items():
-        if activity_type not in display_order:
-            parts.append(f"{activity_type}: {date}")
-    
-    return " | ".join(parts)
+    return modified_data
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -148,7 +103,6 @@ async def duplicates_home(request: Request):
 @router.post("/scan")
 async def start_scan(
     request: Request,
-    background_tasks: BackgroundTasks,
     campus_id: str = Form(""),
     scan_type: str = Form("quick")
 ):
@@ -176,7 +130,7 @@ async def start_scan(
             if campus:
                 campus_name = campus.name
 
-        # Create scan job with 'pending' status
+        # Create scan job
         scan = ScanJob(
             campus_id=campus_id_int,
             campus_name=campus_name,
@@ -189,33 +143,7 @@ async def start_scan(
         portal_db.commit()
         scan_id = scan.id
 
-        # Run scan in background to avoid timeout
-        background_tasks.add_task(run_scan_task, scan_id, campus_id_int, scan_type)
-
-        return JSONResponse({
-            "success": True,
-            "scan_id": scan_id,
-            "message": "Scan started"
-        })
-
-    except Exception as e:
-        portal_db.rollback()
-        return JSONResponse({
-            "success": False,
-            "error": str(e)
-        }, status_code=500)
-    finally:
-        portal_db.close()
-
-
-def run_scan_task(scan_id: int, campus_id_int: int, scan_type: str):
-    """Background task to run the duplicate scan"""
-    portal_db = SessionLocal()
-    try:
-        scan = portal_db.query(ScanJob).filter(ScanJob.id == scan_id).first()
-        if not scan:
-            return
-
+        # Run scan
         try:
             scanner = get_scanner()
 
@@ -257,35 +185,23 @@ def run_scan_task(scan_id: int, campus_id_int: int, scan_type: str):
             })
             portal_db.commit()
 
+            return JSONResponse({
+                "success": True,
+                "scan_id": scan_id,
+                "duplicates_found": len(clusters)
+            })
+
         except Exception as e:
             scan.status = 'failed'
             scan.error_message = str(e)[:500]
             scan.completed_at = datetime.utcnow()
             portal_db.commit()
 
-    finally:
-        portal_db.close()
+            return JSONResponse({
+                "success": False,
+                "error": str(e)
+            }, status_code=500)
 
-
-@router.get("/scan/{scan_id}/status")
-@require_auth
-async def scan_status(request: Request, scan_id: int):
-    """Get scan status for polling"""
-    user = get_current_user(request)
-    if not user:
-        return JSONResponse({"error": "Not authenticated"}, status_code=401)
-
-    portal_db = SessionLocal()
-    try:
-        scan = portal_db.query(ScanJob).filter(ScanJob.id == scan_id).first()
-        if not scan:
-            return JSONResponse({"error": "Scan not found"}, status_code=404)
-
-        return JSONResponse({
-            "status": scan.status,
-            "duplicates_found": scan.duplicates_found,
-            "error": scan.error_message if scan.status == 'failed' else None
-        })
     finally:
         portal_db.close()
 
@@ -309,119 +225,36 @@ async def view_scan(request: Request, scan_id: int):
             }, status_code=404)
 
         clusters = []
+        last_modified = {}
+        
         if scan.results_summary:
             try:
                 results = json.loads(scan.results_summary)
                 clusters = results.get('clusters', [])
-            except:
-                pass
-
-        # Collect all individual IDs from all clusters to fetch activity data
-        all_individual_ids = []
-        for cluster in clusters:
-            members = cluster.get('members', [])
-            for member in members:
-                ind_id = member.get('aos_id') or member.get('individual_id')
-                if ind_id:
-                    all_individual_ids.append(ind_id)
-
-        # Fetch activity data for all individuals
-        activity_data = get_activity_for_individuals(mirror_db, all_individual_ids)
+                
+                # Collect all individual IDs from clusters
+                all_individual_ids = []
+                for cluster in clusters:
+                    members = cluster.get('members', cluster.get('individuals', []))
+                    for member in members:
+                        ind_id = member.get('individual_id') or member.get('aos_id')
+                        if ind_id:
+                            all_individual_ids.append(ind_id)
+                
+                # Get last_modified dates for all individuals
+                if all_individual_ids:
+                    last_modified = get_last_modified_for_individuals(mirror_db, all_individual_ids)
+                    
+            except Exception as e:
+                print(f"Error loading scan results: {e}")
 
         return templates.TemplateResponse("duplicates/results.html", {
             "request": request,
             "user": user,
             "scan": scan,
             "clusters": clusters,
-            "activity_data": activity_data
+            "last_modified": last_modified
         })
-    finally:
-        portal_db.close()
-
-
-@router.get("/scan/{scan_id}/cluster/{cluster_index}", response_class=HTMLResponse)
-@require_auth
-async def view_cluster(request: Request, scan_id: int, cluster_index: int):
-    """View details of a specific duplicate cluster with activity data"""
-    user = get_current_user(request)
-    if not user:
-        return RedirectResponse(url="/auth/login", status_code=303)
-
-    portal_db = SessionLocal()
-    mirror_db = MirrorDatabase()
-    try:
-        scan = portal_db.query(ScanJob).filter(ScanJob.id == scan_id).first()
-        if not scan:
-            return templates.TemplateResponse("error.html", {
-                "request": request,
-                "error": "Scan not found"
-            }, status_code=404)
-
-        clusters = []
-        if scan.results_summary:
-            try:
-                results = json.loads(scan.results_summary)
-                clusters = results.get('clusters', [])
-            except:
-                pass
-
-        if cluster_index < 0 or cluster_index >= len(clusters):
-            return templates.TemplateResponse("error.html", {
-                "request": request,
-                "error": "Cluster not found"
-            }, status_code=404)
-
-        cluster = clusters[cluster_index]
-        members = cluster.get('members', [])
-
-        # Fetch activity data for all members in this cluster
-        individual_ids = []
-        for m in members:
-            ind_id = m.get('aos_id') or m.get('individual_id')
-            if ind_id:
-                individual_ids.append(ind_id)
-
-        activity_data = get_activity_for_individuals(mirror_db, individual_ids)
-
-        return templates.TemplateResponse("duplicates/cluster_detail.html", {
-            "request": request,
-            "user": user,
-            "scan": scan,
-            "scan_id": scan_id,
-            "cluster_index": cluster_index,
-            "cluster": cluster,
-            "activity_data": activity_data,
-            "format_activity_line": format_activity_line
-        })
-    finally:
-        portal_db.close()
-
-
-@router.delete("/scan/{scan_id}")
-@require_auth
-async def delete_scan(request: Request, scan_id: int):
-    """Delete a scan job"""
-    user = get_current_user(request)
-    if not user:
-        return JSONResponse({"error": "Not authenticated"}, status_code=401)
-
-    portal_db = SessionLocal()
-    try:
-        scan = portal_db.query(ScanJob).filter(ScanJob.id == scan_id).first()
-        if not scan:
-            return JSONResponse({"error": "Scan not found"}, status_code=404)
-
-        # Optional: Check if user owns the scan or is admin
-        # if scan.created_by != user.get('id') and not user.get('is_admin'):
-        #     return JSONResponse({"error": "Not authorized"}, status_code=403)
-
-        portal_db.delete(scan)
-        portal_db.commit()
-
-        return JSONResponse({"success": True, "message": "Scan deleted"})
-    except Exception as e:
-        portal_db.rollback()
-        return JSONResponse({"error": str(e)}, status_code=500)
     finally:
         portal_db.close()
 

@@ -1,7 +1,7 @@
 """
 Duplicate Detection Routes
 """
-from fastapi import APIRouter, Request, Form, Query, Depends
+from fastapi import APIRouter, Request, Form, Query, Depends, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 import os
@@ -148,6 +148,7 @@ async def duplicates_home(request: Request):
 @router.post("/scan")
 async def start_scan(
     request: Request,
+    background_tasks: BackgroundTasks,
     campus_id: str = Form(""),
     scan_type: str = Form("quick")
 ):
@@ -175,7 +176,7 @@ async def start_scan(
             if campus:
                 campus_name = campus.name
 
-        # Create scan job
+        # Create scan job with 'pending' status
         scan = ScanJob(
             campus_id=campus_id_int,
             campus_name=campus_name,
@@ -188,7 +189,33 @@ async def start_scan(
         portal_db.commit()
         scan_id = scan.id
 
-        # Run scan
+        # Run scan in background to avoid timeout
+        background_tasks.add_task(run_scan_task, scan_id, campus_id_int, scan_type)
+
+        return JSONResponse({
+            "success": True,
+            "scan_id": scan_id,
+            "message": "Scan started"
+        })
+
+    except Exception as e:
+        portal_db.rollback()
+        return JSONResponse({
+            "success": False,
+            "error": str(e)
+        }, status_code=500)
+    finally:
+        portal_db.close()
+
+
+def run_scan_task(scan_id: int, campus_id_int: int, scan_type: str):
+    """Background task to run the duplicate scan"""
+    portal_db = SessionLocal()
+    try:
+        scan = portal_db.query(ScanJob).filter(ScanJob.id == scan_id).first()
+        if not scan:
+            return
+
         try:
             scanner = get_scanner()
 
@@ -230,23 +257,35 @@ async def start_scan(
             })
             portal_db.commit()
 
-            return JSONResponse({
-                "success": True,
-                "scan_id": scan_id,
-                "duplicates_found": len(clusters)
-            })
-
         except Exception as e:
             scan.status = 'failed'
             scan.error_message = str(e)[:500]
             scan.completed_at = datetime.utcnow()
             portal_db.commit()
 
-            return JSONResponse({
-                "success": False,
-                "error": str(e)
-            }, status_code=500)
+    finally:
+        portal_db.close()
 
+
+@router.get("/scan/{scan_id}/status")
+@require_auth
+async def scan_status(request: Request, scan_id: int):
+    """Get scan status for polling"""
+    user = get_current_user(request)
+    if not user:
+        return JSONResponse({"error": "Not authenticated"}, status_code=401)
+
+    portal_db = SessionLocal()
+    try:
+        scan = portal_db.query(ScanJob).filter(ScanJob.id == scan_id).first()
+        if not scan:
+            return JSONResponse({"error": "Scan not found"}, status_code=404)
+
+        return JSONResponse({
+            "status": scan.status,
+            "duplicates_found": scan.duplicates_found,
+            "error": scan.error_message if scan.status == 'failed' else None
+        })
     finally:
         portal_db.close()
 

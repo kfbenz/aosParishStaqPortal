@@ -55,9 +55,6 @@
                     {{ cluster.confidence }}
                 </span>
                 {% endif %}
-                <a href="/duplicates/scan/{{ scan.id }}/cluster/{{ loop.index0 }}" class="btn btn-sm btn-outline-primary ms-2">
-                    <i class="bi bi-eye"></i> Detail
-                </a>
             </div>
         </div>
         <div class="card-body p-0">
@@ -75,6 +72,7 @@
                 <tbody>
                     {% for member in cluster.members %}
                     {% set ind_id = member.aos_id or member.individual_id %}
+                    {% set ind_id_str = ind_id|string %}
                     <tr>
                         <td>
                             <a href="https://app.ccbchurch.com/#/people/detail/{{ ind_id }}" target="_blank">
@@ -82,7 +80,7 @@
                                 <i class="bi bi-box-arrow-up-right small"></i>
                             </a>
                         </td>
-                        <td>{{ member.name or (member.first_name ~ ' ' ~ member.last_name) or '-' }}</td>
+                        <td>{{ member.name or ((member.first_name or '') ~ ' ' ~ (member.last_name or ''))|trim or '-' }}</td>
                         <td>{{ member.email or '-' }}</td>
                         <td>{{ member.address or '-' }}</td>
                         <td>{{ member.campus_name or '-' }}</td>
@@ -94,38 +92,39 @@
                             {% endif %}
                         </td>
                     </tr>
-                    <!-- Activity Row -->
-                    {% set ind_id_str = ind_id|string %}
-                    {% if activity_data and ind_id_str in activity_data %}
+                    <!-- Activity Row - Always displayed -->
                     <tr class="table-light">
-                        <td colspan="6" class="py-1 ps-4 border-0">
+                        <td colspan="6" class="py-1 ps-4 border-top-0" style="border-top: none !important;">
                             <small class="text-muted">
                                 📊 
-                                {% set activity = activity_data[ind_id_str] %}
-                                {% set parts = [] %}
-                                {% if 'Last Gift' in activity %}
-                                    {% set _ = parts.append('Gift: ' ~ activity['Last Gift']) %}
+                                {% if activity_data and ind_id_str in activity_data %}
+                                    {% set activity = activity_data[ind_id_str] %}
+                                    {% set parts = [] %}
+                                    {% if 'Last Gift' in activity %}
+                                        {% set _ = parts.append('Gift: ' ~ activity['Last Gift']) %}
+                                    {% endif %}
+                                    {% if 'Last Scheduled Gift' in activity %}
+                                        {% set _ = parts.append('Scheduled: ' ~ activity['Last Scheduled Gift']) %}
+                                    {% endif %}
+                                    {% if 'Last Pledge' in activity %}
+                                        {% set _ = parts.append('Pledge: ' ~ activity['Last Pledge']) %}
+                                    {% endif %}
+                                    {% if 'Last Attended' in activity %}
+                                        {% set _ = parts.append('Attended: ' ~ activity['Last Attended']) %}
+                                    {% endif %}
+                                    {% if 'Last Served' in activity %}
+                                        {% set _ = parts.append('Served: ' ~ activity['Last Served']) %}
+                                    {% endif %}
+                                    {% if 'Last Profile Update' in activity %}
+                                        {% set _ = parts.append('Profile: ' ~ activity['Last Profile Update']) %}
+                                    {% endif %}
+                                    {{ parts|join(' | ') if parts else 'No activity recorded' }}
+                                {% else %}
+                                    No activity data
                                 {% endif %}
-                                {% if 'Last Scheduled Gift' in activity %}
-                                    {% set _ = parts.append('Scheduled: ' ~ activity['Last Scheduled Gift']) %}
-                                {% endif %}
-                                {% if 'Last Pledge' in activity %}
-                                    {% set _ = parts.append('Pledge: ' ~ activity['Last Pledge']) %}
-                                {% endif %}
-                                {% if 'Last Attended' in activity %}
-                                    {% set _ = parts.append('Attended: ' ~ activity['Last Attended']) %}
-                                {% endif %}
-                                {% if 'Last Served' in activity %}
-                                    {% set _ = parts.append('Served: ' ~ activity['Last Served']) %}
-                                {% endif %}
-                                {% if 'Last Profile Update' in activity %}
-                                    {% set _ = parts.append('Profile: ' ~ activity['Last Profile Update']) %}
-                                {% endif %}
-                                {{ parts|join(' | ') if parts else 'No activity' }}
                             </small>
                         </td>
                     </tr>
-                    {% endif %}
                     {% endfor %}
                 </tbody>
             </table>
